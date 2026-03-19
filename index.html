@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>星核觉醒 · STELLAR CORE</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; font-family:monospace; }
+
+    #video {
+      position:fixed; top:0; left:0;
+      width:100vw; height:100vh;
+      object-fit:cover; z-index:0;
+    }
+    #threeCanvas {
+      position:fixed; top:0; left:0;
+      width:100vw; height:100vh;
+      z-index:1; pointer-events:none;
+    }
+    #ui {
+      position:fixed; top:0; left:0;
+      width:100vw; height:100vh;
+      z-index:2; pointer-events:none;
+    }
+
+    /* ── 加载界面 ── */
+    #loadingScreen {
+      position:fixed; inset:0;
+      background:#000; z-index:50;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      gap:20px;
+    }
+    #loadingScreen h1 {
+      color:#FFD700; font-size:30px; letter-spacing:6px;
+      text-shadow:0 0 24px #FFD700;
+      animation:pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    #loadingScreen p { color:#00ff88; font-size:13px; letter-spacing:2px; }
+    #loadingBar {
+      width:240px; height:4px;
+      background:rgba(255,255,255,0.1);
+      border-radius:2px; overflow:hidden;
+    }
+    #loadingFill {
+      height:100%; width:0%;
+      background:linear-gradient(90deg,#00ff88,#FFD700);
+      border-radius:2px;
+      transition:width 0.3s ease;
+    }
+    #loadingStatus { color:rgba(255,255,255,0.4); font-size:11px; letter-spacing:1px; }
+
+    /* ── 启动界面 ── */
+    #startBtn {
+      position:fixed; inset:0;
+      display:none; flex-direction:column;
+      align-items:center; justify-content:center;
+      background:rgba(0,0,0,0.88); z-index:10;
+    }
+    #startBtn h1 {
+      color:#FFD700; font-size:30px; letter-spacing:5px;
+      margin-bottom:8px; text-shadow:0 0 24px #FFD700;
+    }
+    #startBtn .sub { color:#00ff88; font-size:14px; letter-spacing:3px; margin-bottom:48px; }
+    #startBtnInner {
+      background:transparent; border:2px solid #00ff88;
+      color:#00ff88; font-family:monospace; font-size:16px;
+      padding:14px 44px; cursor:pointer; letter-spacing:2px;
+      border-radius:4px; box-shadow:0 0 16px rgba(0,255,136,0.25);
+      transition:all 0.2s;
+    }
+    #startBtnInner:active { background:rgba(0,255,136,0.15); transform:scale(0.97); }
+    .tip-small { color:rgba(255,255,255,0.3); font-size:11px; margin-top:20px; letter-spacing:1px; }
+
+    /* ── 屏幕边缘扫描线 ── */
+    #edgeScan {
+      position:fixed; inset:0; z-index:3; pointer-events:none;
+      display:none;
+    }
+    .edge-line {
+      position:absolute; background:#00ff88;
+      box-shadow:0 0 8px #00ff88, 0 0 20px rgba(0,255,136,0.3);
+    }
+    .edge-top, .edge-bottom { height:2px; left:0; right:0; animation:edgeH 4s ease-in-out infinite; }
+    .edge-left, .edge-right { width:2px; top:0; bottom:0; animation:edgeV 4s ease-in-out infinite; }
+    .edge-top { top:0; } .edge-bottom { bottom:0; animation-delay:2s; }
+    .edge-left { left:0; } .edge-right { right:0; animation-delay:1s; }
+    @keyframes edgeH { 0%,100%{opacity:0.15} 50%{opacity:0.5} }
+    @keyframes edgeV { 0%,100%{opacity:0.1} 50%{opacity:0.35} }
+
+    /* ── 扫描框 ── */
+    #scanner {
+      position:absolute; top:50%; left:50%;
+      width:220px; height:220px;
+      transform:translate(-50%,-58%); display:none;
+    }
+    .corner { position:absolute; width:26px; height:26px; border:3px solid #fff; }
+    .tl{top:0;left:0;border-right:none;border-bottom:none;}
+    .tr{top:0;right:0;border-left:none;border-bottom:none;}
+    .bl{bottom:0;left:0;border-right:none;border-top:none;}
+    .br{bottom:0;right:0;border-left:none;border-top:none;}
+    .sline {
+      position:absolute; left:4px; right:4px; height:2px;
+      background:#00ff88; box-shadow:0 0 8px #00ff88;
+      animation:scanAnim 2.5s ease-in-out infinite;
+    }
+    .sline2 { animation-delay:1.25s; }
+    @keyframes scanAnim { 0%,100%{top:4px;opacity:0.6} 50%{top:calc(100% - 6px);opacity:1} }
+
+    /* ── HUD ── */
+    #hudL {
+      position:absolute; top:20px; left:16px;
+      color:#00ff88; font-size:12px; line-height:2;
+      text-shadow:0 0 6px #00ff88; display:none;
+    }
+    #hudCoord {
+      color:rgba(0,255,136,0.5); font-size:10px;
+      margin-top:2px; letter-spacing:0.5px;
+    }
+    #hudR { position:absolute; top:20px; right:16px; text-align:right; display:none; }
+    #energyLabel { color:#00ff88; font-size:11px; margin-bottom:5px; letter-spacing:1px; }
+    #energyBg {
+      width:90px; height:6px;
+      background:rgba(255,255,255,0.1);
+      border-radius:3px; overflow:hidden;
+      border:1px solid rgba(0,255,136,0.2);
+    }
+    #energyFill {
+      width:0%; height:100%;
+      background:linear-gradient(90deg,#ff3300,#FFD700);
+      transition:width 0.7s ease; border-radius:3px;
+    }
+    #energyVal { color:#FFD700; font-size:10px; margin-top:4px; text-align:right; }
+
+    /* ── 提示 ── */
+    #hint {
+      position:absolute; bottom:50px; left:50%;
+      transform:translateX(-50%);
+      background:rgba(0,0,0,0.7);
+      border:1px solid rgba(255,255,255,0.12);
+      color:#fff; font-size:14px;
+      padding:10px 22px; border-radius:6px;
+      white-space:nowrap; display:none; letter-spacing:1px;
+    }
+
+    /* ── 闪光 ── */
+    #flash {
+      position:fixed; inset:0; background:#fff;
+      opacity:0; pointer-events:none;
+      z-index:20; transition:opacity 0.12s;
+    }
+
+    /* ── 觉醒文字 ── */
+    #awakened {
+      position:fixed; top:36%; left:50%;
+      transform:translate(-50%,-50%);
+      text-align:center; z-index:25;
+      display:none; pointer-events:none;
+    }
+    #awakened h1 {
+      color:#FFD700; font-size:24px; letter-spacing:4px;
+      text-shadow:0 0 20px #FFD700, 0 0 50px rgba(255,215,0,0.5);
+    }
+    #awakened p {
+      color:#00ff88; font-size:13px;
+      margin-top:12px; opacity:0;
+      transition:opacity 1s; letter-spacing:2px;
+    }
+
+    /* ── 重启按钮 ── */
+    #restartBtn {
+      position:fixed; bottom:40px; left:50%;
+      transform:translateX(-50%);
+      background:rgba(0,0,0,0.7);
+      border:1px solid rgba(255,215,0,0.4);
+      color:#FFD700; font-family:monospace; font-size:13px;
+      padding:10px 28px; border-radius:4px; cursor:pointer;
+      letter-spacing:2px; z-index:30; display:none;
+      pointer-events:all;
+    }
+
+    /* ── 长按进度 ── */
+    #progressCanvas {
+      position:fixed; inset:0;
+      pointer-events:none; z-index:15;
+    }
+    #touchLayer { position:fixed; inset:0; z-index:5; display:none; }
+  </style>
+</head>
+<body>
+
+<video id="video" autoplay playsinline muted></video>
+<canvas id="threeCanvas"></canvas>
+
+<!-- 边缘扫描线 -->
+<div id="edgeScan">
+  <div class="edge-line edge-top"></div>
+  <div class="edge-line edge-bottom"></div>
+  <div class="edge-line edge-left"></div>
+  <div class="edge-line edge-right"></div>
+</div>
+
+<div id="ui">
+  <div id="scanner">
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+    <div class="sline"></div><div class="sline sline2"></div>
+  </div>
+  <div id="hudL">
+    SYS: ONLINE<br>CORE: DETECTED
+    <div id="hudCoord">31.2304°N · 121.4737°E</div>
+  </div>
+  <div id="hudR">
+    <div id="energyLabel">ENERGY</div>
+    <div id="energyBg"><div id="energyFill"></div></div>
+    <div id="energyVal">0%</div>
+  </div>
+  <div id="hint"></div>
+</div>
+
+<!-- 加载界面 -->
+<div id="loadingScreen">
+  <h1>STELLAR CORE</h1>
+  <p>星 核 觉 醒</p>
+  <div id="loadingBar"><div id="loadingFill"></div></div>
+  <div id="loadingStatus">INITIALIZING...</div>
+</div>
+
+<!-- 启动界面 -->
+<div id="startBtn" style="display:none">
+  <h1>STELLAR CORE</h1>
+  <div class="sub">星 核 觉 醒</div>
+  <button id="startBtnInner">▶ 启动 AR 体验</button>
+  <div class="tip-small">需要摄像头权限 · 建议全屏体验</div>
+</div>
+
+<div id="flash"></div>
+<div id="awakened">
+  <h1 id="awakenTitle"></h1>
+  <p id="awakenSub">异常能量体已完全激活</p>
+</div>
+<button id="restartBtn">↺ 再次体验</button>
+<canvas id="progressCanvas"></canvas>
+<div id="touchLayer"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+
+// ── 加载进度动画 ──
+let loadPct = 0;
+const loadSteps = ['LOADING ENGINE...','BUILDING SCENE...','INIT PARTICLES...','READY'];
+let loadIdx = 0;
+const loadInterval = setInterval(()=>{
+  loadPct += Math.random()*18 + 5;
+  if(loadPct >= 100){ loadPct=100; clearInterval(loadInterval); }
+  $('loadingFill').style.width = loadPct+'%';
+  if(loadIdx < loadSteps.length-1 && loadPct > (loadIdx+1)*25){
+    loadIdx++; $('loadingStatus').textContent = loadSteps[loadIdx];
+  }
+}, 200);
+
+// ── Three.js 初始化 ──
+const canvas = $('threeCanvas');
+const renderer = new THREE.WebGLRenderer({ canvas, alpha:true, antialias:true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x000000, 0);
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.01, 100);
+cam.position.set(0, 0, 1.2);
+
+window.addEventListener('resize', ()=>{
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  cam.aspect = window.innerWidth/window.innerHeight;
+  cam.updateProjectionMatrix();
+});
+
+// 灯光
+scene.add(new THREE.AmbientLight(0x222233));
+const ptL = new THREE.PointLight(0xff6600, 2.5);
+ptL.position.set(1,1,1); scene.add(ptL);
+const ptL2 = new THREE.PointLight(0x0066ff, 1);
+ptL2.position.set(-1,-0.5,0.5); scene.add(ptL2);
+
+// ── 星球 ──
+const planet = new THREE.Group();
+planet.position.set(0, 0.05, 0);
+scene.add(planet);
+
+// 星球表面纹理（程序化生成）
+const texSize = 256;
+const texCanvas = document.createElement('canvas');
+texCanvas.width = texCanvas.height = texSize;
+const tc = texCanvas.getContext('2d');
+// 深空底色
+const grad = tc.createRadialGradient(128,128,0,128,128,128);
+grad.addColorStop(0,'#2a0a4e');
+grad.addColorStop(0.4,'#1a0a2e');
+grad.addColorStop(1,'#0a0515');
+tc.fillStyle=grad; tc.fillRect(0,0,texSize,texSize);
+// 随机大陆纹理
+for(let i=0;i<800;i++){
+  const x=Math.random()*texSize, y=Math.random()*texSize;
+  const r=Math.random()*4+1;
+  const g2=tc.createRadialGradient(x,y,0,x,y,r);
+  const hue = Math.random()<0.3?'rgba(255,100,0,':'rgba(80,0,180,';
+  g2.addColorStop(0,hue+'0.6)'); g2.addColorStop(1,hue+'0)');
+  tc.fillStyle=g2; tc.beginPath(); tc.arc(x,y,r,0,6.28); tc.fill();
+}
+// 裂缝发光线
+tc.strokeStyle='rgba(255,80,0,0.3)'; tc.lineWidth=1;
+for(let i=0;i<12;i++){
+  tc.beginPath();
+  tc.moveTo(Math.random()*texSize,Math.random()*texSize);
+  tc.lineTo(Math.random()*texSize,Math.random()*texSize);
+  tc.stroke();
+}
+const planetTex = new THREE.CanvasTexture(texCanvas);
+
+const coreMat = new THREE.MeshStandardMaterial({
+  map: planetTex, roughness:0.7, metalness:0.2,
+  emissive: new THREE.Color(0x1a0510), emissiveIntensity:0.3
+});
+const core = new THREE.Mesh(new THREE.SphereGeometry(0.18,64,64), coreMat);
+planet.add(core);
+
+// 裂缝线框
+const crackMat = new THREE.MeshBasicMaterial({ color:0xff3300, wireframe:true, transparent:true, opacity:0.4 });
+const cracks = new THREE.Mesh(new THREE.SphereGeometry(0.184,20,20), crackMat);
+planet.add(cracks);
+
+// 外层光晕
+const glowMat = new THREE.MeshBasicMaterial({ color:0x3300aa, transparent:true, opacity:0.12, side:THREE.BackSide });
+const glow = new THREE.Mesh(new THREE.SphereGeometry(0.23,32,32), glowMat);
+planet.add(glow);
+
+// 大气层
+const atmosMat = new THREE.MeshBasicMaterial({ color:0x6600ff, transparent:true, opacity:0.06, side:THREE.BackSide });
+const atmos = new THREE.Mesh(new THREE.SphereGeometry(0.26,32,32), atmosMat);
+planet.add(atmos);
+
+// ── 粒子 ──
+const mkPts=(n,r0,r1,sz,col,opacity=0.8)=>{
+  const geo=new THREE.BufferGeometry(), pos=new Float32Array(n*3);
+  for(let i=0;i<n;i++){
+    const r=r0+Math.random()*(r1-r0), phi=Math.acos(2*Math.random()-1), th=Math.random()*6.28;
+    pos[i*3]=r*Math.sin(phi)*Math.cos(th);
+    pos[i*3+1]=r*Math.sin(phi)*Math.sin(th);
+    pos[i*3+2]=r*Math.cos(phi);
+  }
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  return new THREE.Points(geo,new THREE.PointsMaterial({size:sz,color:col,transparent:true,opacity}));
+};
+const orbit = mkPts(250,0.28,0.44,0.004,0x88aaff);
+const orbit2 = mkPts(100,0.32,0.5,0.003,0xffaa44,0.4);
+planet.add(orbit); planet.add(orbit2);
+
+// 爆发粒子
+const BN=600;
+const bGeo=new THREE.BufferGeometry();
+const bPos=new Float32Array(BN*3), bVel=new Float32Array(BN*3);
+bGeo.setAttribute('position',new THREE.BufferAttribute(bPos,3));
+const bMat=new THREE.PointsMaterial({size:0.007,color:0xFFD700,transparent:true,opacity:0});
+const burstPts=new THREE.Points(bGeo,bMat); scene.add(burstPts);
+let burstActive=false, burstStart=0;
+
+const triggerBurst=(n=600,col=0xFFD700)=>{
+  burstActive=true; burstStart=Date.now(); bMat.opacity=1; bMat.color.set(col);
+  const a=bGeo.attributes.position;
+  for(let i=0;i<n;i++){
+    const sp=0.012+Math.random()*0.028, phi=Math.acos(2*Math.random()-1), th=Math.random()*6.28;
+    bVel[i*3]=sp*Math.sin(phi)*Math.cos(th);
+    bVel[i*3+1]=sp*Math.sin(phi)*Math.sin(th);
+    bVel[i*3+2]=sp*Math.cos(phi);
+    a.array[i*3]=0; a.array[i*3+1]=0.05; a.array[i*3+2]=0;
+  }
+  a.needsUpdate=true;
+};
+
+// 喷射粒子
+const jGeo=new THREE.BufferGeometry(), jPos=new Float32Array(400*3), jVel=new Float32Array(400*3);
+jGeo.setAttribute('position',new THREE.BufferAttribute(jPos,3));
+let jPtr=0, isJetting=false;
+const jet=new THREE.Points(jGeo,new THREE.PointsMaterial({size:0.003,color:0xFFD700,transparent:true,opacity:0.8}));
+scene.add(jet);
+
+// ── 进度画布 ──
+const pCanvas=$('progressCanvas'), pCtx=pCanvas.getContext('2d');
+const rszP=()=>{ pCanvas.width=innerWidth; pCanvas.height=innerHeight; };
+window.addEventListener('resize',rszP); rszP();
+
+// ── 状态 ──
+let stage=0, clickCount=0, rotateTotal=0;
+let isDragging=false, lastX=0, rotSpeed=0.008;
+let lpTimer=null, lpProgress=0, rune=null;
+let audioCtx=null, bgGain=null;
+
+// 能量百分比对应表
+const energyMap={0:'0%',2:'33%',3:'66%',4:'100%'};
+const setEnergy=()=>{
+  const v=energyMap[stage]||'0%';
+  $('energyFill').style.width=v;
+  $('energyVal').textContent=v;
+};
+const setHint=t=>{ $('hint').textContent=t; };
+
+// ── 背景音乐（Web Audio API生成）──
+const startBGM=()=>{
+  if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  bgGain=audioCtx.createGain(); bgGain.gain.value=0.06;
+  bgGain.connect(audioCtx.destination);
+  const playDrone=()=>{
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type='sine'; o.frequency.value=[55,82,110,146][Math.floor(Math.random()*4)];
+    g.gain.setValueAtTime(0,audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(1,audioCtx.currentTime+2);
+    g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+8);
+    o.connect(g); g.connect(bgGain);
+    o.start(); o.stop(audioCtx.currentTime+8);
+    setTimeout(playDrone, 6000+Math.random()*4000);
+  };
+  playDrone();
+  // 高频点缀
+  const playShimmer=()=>{
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type='sine'; o.frequency.value=800+Math.random()*1200;
+    g.gain.setValueAtTime(0,audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0.3,audioCtx.currentTime+0.1);
+    g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+0.6);
+    o.connect(g); g.connect(bgGain);
+    o.start(); o.stop(audioCtx.currentTime+0.6);
+    setTimeout(playShimmer, 1500+Math.random()*3000);
+  };
+  setTimeout(playShimmer, 2000);
+};
+
+const playAwakenSound=()=>{
+  if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(bgGain) bgGain.gain.linearRampToValueAtTime(0.15,audioCtx.currentTime+0.5);
+  // 主音调
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.frequency.setValueAtTime(120,audioCtx.currentTime);
+  o.frequency.linearRampToValueAtTime(960,audioCtx.currentTime+1.5);
+  g.gain.setValueAtTime(0.3,audioCtx.currentTime);
+  g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+2.5);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime+2.5);
+  // 和弦
+  [1.25,1.5,2].forEach((mult,i)=>{
+    const o2=audioCtx.createOscillator(), g2=audioCtx.createGain();
+    o2.frequency.setValueAtTime(120*mult,audioCtx.currentTime+i*0.1);
+    o2.frequency.linearRampToValueAtTime(960*mult,audioCtx.currentTime+1.5);
+    g2.gain.setValueAtTime(0.1,audioCtx.currentTime);
+    g2.gain.linearRampToValueAtTime(0,audioCtx.currentTime+2);
+    o2.connect(g2); g2.connect(audioCtx.destination);
+    o2.start(); o2.stop(audioCtx.currentTime+2);
+  });
+};
+
+// ── 觉醒动画 ──
+const awaken=()=>{
+  stage=4; setEnergy(); $('hint').style.display='none';
+  playAwakenSound(); triggerBurst(600);
+  setTimeout(()=>{
+    let sc=1;
+    const gr=()=>{ sc+=0.04; cracks.scale.setScalar(sc); crackMat.opacity-=0.03; if(sc<1.6) requestAnimationFrame(gr); else cracks.visible=false; };
+    gr(); glowMat.opacity=0.5; glowMat.color.set(0xff6600);
+  },300);
+  setTimeout(()=>{
+    rotSpeed=0.055;
+    const tgt=new THREE.Color(0xFFAA00);
+    const emTgt=new THREE.Color(0xff6600);
+    const lp=()=>{
+      coreMat.color.lerp(tgt,0.05);
+      coreMat.emissive.lerp(emTgt,0.05);
+      coreMat.emissiveIntensity=Math.min(coreMat.emissiveIntensity+0.02,1.2);
+      if(coreMat.color.r<0.99) requestAnimationFrame(lp);
+    };
+    lp();
+  },600);
+  setTimeout(()=>{ $('flash').style.opacity='1'; setTimeout(()=>$('flash').style.opacity='0',180); },1000);
+  setTimeout(()=>{ glowMat.color.set(0xFFD700); glowMat.opacity=0.3; atmosMat.color.set(0xFFAA00); isJetting=true; },1500);
+  setTimeout(()=>{
+    $('awakened').style.display='block';
+    const txt="STELLAR CORE AWAKENED"; let i=0;
+    const tp=()=>{ $('awakenTitle').textContent+=txt[i]; i++; if(i<txt.length) setTimeout(tp,75); else { $('awakenSub').style.opacity='1'; setTimeout(()=>$('restartBtn').style.display='block',1500); } };
+    tp();
+  },2500);
+};
+
+// ── 重启 ──
+$('restartBtn').addEventListener('click',()=>{
+  stage=0; clickCount=0; rotateTotal=0; rotSpeed=0.008; isJetting=false;
+  lpProgress=0; rune=null; burstActive=false;
+  // 重置星球
+  coreMat.color.set(0x1a0a2e); coreMat.emissive.set(0x1a0510); coreMat.emissiveIntensity=0.3;
+  crackMat.color.set(0xff3300); crackMat.opacity=0.4; cracks.visible=true; cracks.scale.setScalar(1);
+  glowMat.color.set(0x3300aa); glowMat.opacity=0.12; atmosMat.color.set(0x6600ff);
+  planet.rotation.set(0,0,0); bMat.opacity=0;
+  // 重置UI
+  $('awakened').style.display='none'; $('awakenTitle').textContent=''; $('awakenSub').style.opacity='0';
+  $('restartBtn').style.display='none'; $('hint').style.display='block';
+  setEnergy(); setHint('点击星球唤醒能量');
+  if(bgGain) bgGain.gain.setValueAtTime(0.06,audioCtx.currentTime);
+});
+
+// ── 交互 ──
+const ray=new THREE.Raycaster(), ndcV=new THREE.Vector2();
+const onDown=e=>{
+  if(!audioCtx){ audioCtx=new(window.AudioContext||window.webkitAudioContext)(); startBGM(); }
+  const cx=e.touches?e.touches[0].clientX:e.clientX;
+  const cy=e.touches?e.touches[0].clientY:e.clientY;
+  ndcV.x=(cx/innerWidth)*2-1; ndcV.y=-(cy/innerHeight)*2+1;
+  isDragging=true; lastX=cx;
+  if(stage<2){
+    ray.setFromCamera(ndcV,cam);
+    if(ray.intersectObject(core).length>0){
+      clickCount++; crackMat.opacity=Math.min(1,crackMat.opacity+0.18);
+      triggerBurst(80,0xff4400);
+      // 点击音效
+      const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+      o.frequency.value=200+clickCount*100; g.gain.setValueAtTime(0.15,audioCtx.currentTime); g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+0.3);
+      o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.3);
+      if(clickCount>=3){ stage=2; crackMat.color.set(0xff8800); setEnergy(); setHint('旋转星球，寻找符文'); }
+    }
+  } else if(stage===3){
+    lpProgress=0;
+    lpTimer=setInterval(()=>{ lpProgress+=3.5; if(lpProgress>=100){ clearInterval(lpTimer); lpTimer=null; awaken(); } },80);
+  }
+};
+const onUp=()=>{ isDragging=false; if(lpTimer){ clearInterval(lpTimer); lpTimer=null; lpProgress=0; } };
+const onMove=e=>{
+  const cx=e.touches?e.touches[0].clientX:e.clientX;
+  if(isDragging&&stage===2){
+    const d=(cx-lastX)*0.013; rotateTotal+=Math.abs(d*50); planet.rotation.y+=d;
+    if(rotateTotal>=180&&!rune){
+      rune=new THREE.Mesh(new THREE.PlaneGeometry(0.09,0.09),new THREE.MeshBasicMaterial({color:0x00ffff,side:THREE.DoubleSide,transparent:true,opacity:0.9}));
+      rune.position.set(0,0,-0.2); planet.add(rune);
+      stage=3; setEnergy(); setHint('长按符文激活核心');
+    }
+  }
+  lastX=cx;
+};
+
+const tl=$('touchLayer');
+tl.addEventListener('mousedown',onDown); tl.addEventListener('touchstart',onDown,{passive:true});
+tl.addEventListener('mouseup',onUp); tl.addEventListener('touchend',onUp);
+tl.addEventListener('mousemove',onMove); tl.addEventListener('touchmove',onMove,{passive:true});
+
+// ── 渲染循环 ──
+renderer.setAnimationLoop(()=>{
+  planet.rotation.y += rotSpeed;
+  orbit.rotation.y += 0.004; orbit.rotation.x += 0.001;
+  orbit2.rotation.y -= 0.003; orbit2.rotation.z += 0.002;
+
+  if(burstActive){
+    const el=Date.now()-burstStart, a=bGeo.attributes.position;
+    if(el<1800){
+      bMat.opacity=Math.max(0,1-(el/1800));
+      for(let i=0;i<BN;i++){ a.array[i*3]+=bVel[i*3]; a.array[i*3+1]+=bVel[i*3+1]; a.array[i*3+2]+=bVel[i*3+2]; }
+      a.needsUpdate=true;
+    } else { burstActive=false; bMat.opacity=0; }
+  }
+
+  if(isJetting){
+    const ja=jGeo.attributes.position;
+    for(let i=0;i<4;i++){
+      const idx=jPtr*3, sp=0.007+Math.random()*0.014, phi=Math.acos(2*Math.random()-1), th=Math.random()*6.28;
+      ja.array[idx]=(Math.random()-0.5)*0.07;
+      ja.array[idx+1]=0.05+(Math.random()-0.5)*0.07;
+      ja.array[idx+2]=(Math.random()-0.5)*0.07;
+      jVel[idx]=sp*Math.sin(phi)*Math.cos(th);
+      jVel[idx+1]=sp*Math.sin(phi)*Math.sin(th);
+      jVel[idx+2]=sp*Math.cos(phi);
+      jPtr=(jPtr+1)%400;
+    }
+    for(let i=0;i<400;i++){ ja.array[i*3]+=jVel[i*3]; ja.array[i*3+1]+=jVel[i*3+1]; ja.array[i*3+2]+=jVel[i*3+2]; }
+    ja.needsUpdate=true;
+  }
+
+  // 长按进度圆
+  pCtx.clearRect(0,0,pCanvas.width,pCanvas.height);
+  if(lpProgress>0){
+    const cx=pCanvas.width/2, cy=pCanvas.height/2;
+    pCtx.beginPath(); pCtx.arc(cx,cy,60,0,Math.PI*2);
+    pCtx.strokeStyle='rgba(255,255,255,0.12)'; pCtx.lineWidth=12; pCtx.stroke();
+    pCtx.beginPath(); pCtx.arc(cx,cy,60,-Math.PI/2,-Math.PI/2+Math.PI*2*lpProgress/100);
+    pCtx.strokeStyle='#00ffff'; pCtx.lineWidth=12;
+    pCtx.shadowColor='#00ffff'; pCtx.shadowBlur=10; pCtx.stroke();
+    pCtx.shadowBlur=0;
+  }
+
+  renderer.render(scene,cam);
+});
+
+// ── 摄像头 ──
+async function startCamera(){
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:false});
+    $('video').srcObject=stream; return true;
+  }catch(e){
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+      $('video').srcObject=stream; return true;
+    }catch(e2){ alert('无法访问摄像头，请授权后刷新'); return false; }
+  }
+}
+
+// ── 启动流程 ──
+// 加载动画完成后显示启动界面
+setTimeout(()=>{
+  $('loadingScreen').style.display='none';
+  $('startBtn').style.display='flex';
+}, 2800);
+
+$('startBtnInner').addEventListener('click', async()=>{
+  const ok = await startCamera();
+  if(!ok) return;
+  $('startBtn').style.display='none';
+  $('edgeScan').style.display='block';
+  $('scanner').style.display='block';
+  $('hudL').style.display='block';
+  $('hudR').style.display='block';
+  $('hint').style.display='block';
+  $('touchLayer').style.display='block';
+  setHint('点击星球唤醒能量');
+  setEnergy();
+});
+</script>
+</body>
+</html>
