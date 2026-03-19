@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Stellar Core AR</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; overflow:hidden; font-family:monospace; }
+
+    #mindar-container { position:fixed; top:0; left:0; width:100vw; height:100vh; }
+    #mindar-container video { 
+      position:absolute; top:0; left:0; 
+      width:100%; height:100%; 
+      object-fit:cover;
+    }
+    #mindar-container canvas { 
+      position:absolute; top:0; left:0; 
+      width:100%; height:100%; 
+    }
+
+    /* UI层 */
+    #ui { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:100; }
+
+    /* 扫描框 */
+    #scanner { 
+      position:absolute; top:50%; left:50%; 
+      width:220px; height:220px; 
+      transform:translate(-50%,-50%);
+    }
+    .corner { position:absolute; width:24px; height:24px; border:3px solid #fff; }
+    .tl{top:0;left:0;border-right:none;border-bottom:none;}
+    .tr{top:0;right:0;border-left:none;border-bottom:none;}
+    .bl{bottom:0;left:0;border-right:none;border-top:none;}
+    .br{bottom:0;right:0;border-left:none;border-top:none;}
+    .sline { 
+      position:absolute; left:4px; right:4px; height:2px; 
+      background:#00ff88; box-shadow:0 0 8px #00ff88; 
+      animation:scanAnim 2s ease-in-out infinite; 
+    }
+    .sline2 { animation-delay:1s; }
+    @keyframes scanAnim { 0%,100%{top:4px} 50%{top:calc(100% - 6px)} }
+    #scanTip { 
+      position:absolute; bottom:-36px; width:100%; 
+      text-align:center; color:#00ff88; font-size:13px; 
+      text-shadow:0 0 6px #00ff88;
+    }
+
+    /* HUD */
+    #hudL { 
+      position:absolute; top:20px; left:16px; 
+      color:#00ff88; font-size:12px; line-height:1.8;
+      text-shadow:0 0 4px #00ff88; display:none;
+    }
+    #hudR { 
+      position:absolute; top:20px; right:16px; 
+      text-align:right; display:none;
+    }
+    #energyLabel { color:#00ff88; font-size:12px; margin-bottom:4px; }
+    #energyBg { 
+      width:90px; height:7px; 
+      background:rgba(255,255,255,0.15); 
+      border-radius:4px; overflow:hidden; 
+      border:1px solid rgba(0,255,136,0.3);
+    }
+    #energyFill { 
+      width:0%; height:100%; 
+      background:linear-gradient(90deg,#ff3300,#FFD700); 
+      transition:width 0.6s ease; border-radius:4px;
+    }
+
+    /* 提示 */
+    #hint { 
+      position:absolute; bottom:40px; left:50%; 
+      transform:translateX(-50%);
+      background:rgba(0,0,0,0.65); 
+      border:1px solid rgba(255,255,255,0.15);
+      color:#fff; font-size:14px; 
+      padding:9px 20px; border-radius:6px; 
+      white-space:nowrap; display:none;
+    }
+
+    /* 闪光 */
+    #flash { 
+      position:fixed; inset:0; background:#fff; 
+      opacity:0; pointer-events:none; z-index:200;
+      transition:opacity 0.15s;
+    }
+
+    /* 觉醒文字 */
+    #awakened { 
+      position:fixed; top:40%; left:50%; 
+      transform:translate(-50%,-50%);
+      text-align:center; z-index:200; 
+      display:none; pointer-events:none;
+    }
+    #awakened h1 { 
+      color:#FFD700; font-size:22px; 
+      letter-spacing:3px; 
+      text-shadow:0 0 20px #FFD700;
+    }
+    #awakened p { 
+      color:#00ff88; font-size:13px; 
+      margin-top:10px; opacity:0;
+      transition:opacity 0.5s;
+    }
+
+    /* 长按进度圆 */
+    #progressCanvas { 
+      position:fixed; inset:0; 
+      pointer-events:none; z-index:150;
+    }
+  </style>
+</head>
+<body>
+
+<div id="mindar-container"></div>
+
+<div id="ui">
+  <div id="scanner">
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+    <div class="sline"></div>
+    <div class="sline sline2"></div>
+    <div id="scanTip">将摄像头对准目标图案</div>
+  </div>
+  <div id="hudL">SYS: ONLINE<br>TARGET: LOCKED</div>
+  <div id="hudR">
+    <div id="energyLabel">ENERGY</div>
+    <div id="energyBg"><div id="energyFill"></div></div>
+  </div>
+  <div id="hint">点击星球唤醒能量</div>
+</div>
+
+<div id="flash"></div>
+<div id="awakened">
+  <h1 id="awakenTitle"></h1>
+  <p id="awakenSub">异常能量体已完全激活</p>
+</div>
+<canvas id="progressCanvas"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(async () => {
+  // --- UI refs ---
+  const $ = id => document.getElementById(id);
+  const scanner=$('scanner'), hudL=$('hudL'), hudR=$('hudR');
+  const hint=$('hint'), flash=$('flash');
+  const awakened=$('awakened'), awakenTitle=$('awakenTitle'), awakenSub=$('awakenSub');
+  const progressCanvas=$('progressCanvas');
+  const pCtx = progressCanvas.getContext('2d');
+  const energyFill=$('energyFill');
+
+  const resizeCanvas = () => { progressCanvas.width=innerWidth; progressCanvas.height=innerHeight; };
+  window.addEventListener('resize', resizeCanvas); resizeCanvas();
+
+  // --- MindAR init ---
+  const mindarThree = new window.MINDAR.IMAGE.MindARThree({
+    container: document.getElementById('mindar-container'),
+    imageTargetSrc: 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/examples/assets/card-example/card.mind',
+  });
+
+  const { renderer, scene, camera } = mindarThree;
+  const anchor = mindarThree.addAnchor(0);
+
+  // --- Scene setup ---
+  scene.add(new THREE.AmbientLight(0x333333));
+  const ptLight = new THREE.PointLight(0xff6600, 1.5);
+  ptLight.position.set(0.5, 0.5, 0.5);
+  scene.add(ptLight);
+
+  const root = new THREE.Group();
+  anchor.group.add(root);
+  const planet = new THREE.Group();
+  root.add(planet);
+
+  // Core sphere
+  const coreMat = new THREE.MeshStandardMaterial({ color:0x1a0a2e, roughness:0.8, metalness:0.3 });
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.15,32,32), coreMat);
+  planet.add(core);
+
+  // Cracks wireframe
+  const crackMat = new THREE.MeshBasicMaterial({ color:0xff3300, wireframe:true, transparent:true, opacity:0.4 });
+  const cracks = new THREE.Mesh(new THREE.SphereGeometry(0.152,32,32), crackMat);
+  planet.add(cracks);
+
+  // Glow
+  const glowMat = new THREE.MeshBasicMaterial({ color:0x4400ff, transparent:true, opacity:0.08, side:THREE.BackSide });
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.18,32,32), glowMat);
+  root.add(glow);
+
+  // Orbit particles
+  const mkPoints = (n, rMin, rMax, sz, col) => {
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(n*3);
+    for(let i=0;i<n;i++){
+      const r=rMin+Math.random()*(rMax-rMin), phi=Math.acos(2*Math.random()-1), th=Math.random()*6.28;
+      pos[i*3]=r*Math.sin(phi)*Math.cos(th);
+      pos[i*3+1]=r*Math.sin(phi)*Math.sin(th);
+      pos[i*3+2]=r*Math.cos(phi);
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    return new THREE.Points(geo, new THREE.PointsMaterial({size:sz,color:col,transparent:true,opacity:0.8}));
+  };
+  const orbit = mkPoints(200,0.2,0.35,0.003,0x88aaff);
+  root.add(orbit);
+
+  // Burst particles
+  const BURST_N = 500;
+  const burstGeo = new THREE.BufferGeometry();
+  const burstPos = new Float32Array(BURST_N*3);
+  burstGeo.setAttribute('position', new THREE.BufferAttribute(burstPos,3));
+  const burstVel = new Float32Array(BURST_N*3);
+  const burstMat = new THREE.PointsMaterial({size:0.005,color:0xFFD700,transparent:true,opacity:0});
+  const burstPts = new THREE.Points(burstGeo, burstMat);
+  root.add(burstPts);
+
+  let burstActive=false, burstStart=0, burstCount=500;
+  const triggerBurst = (n=500) => {
+    burstCount=n; burstActive=true; burstStart=Date.now(); burstMat.opacity=1;
+    const attr = burstGeo.attributes.position;
+    for(let i=0;i<n;i++){
+      const sp=0.02+Math.random()*0.03, phi=Math.acos(2*Math.random()-1), th=Math.random()*6.28;
+      burstVel[i*3]=sp*Math.sin(phi)*Math.cos(th);
+      burstVel[i*3+1]=sp*Math.sin(phi)*Math.sin(th);
+      burstVel[i*3+2]=sp*Math.cos(phi);
+      attr.array[i*3]=0; attr.array[i*3+1]=0; attr.array[i*3+2]=0;
+    }
+    attr.needsUpdate=true;
+  };
+
+  // --- State ---
+  let stage=0, clickCount=0, rotateTotal=0;
+  let isDragging=false, lastX=0, rotSpeed=0.005;
+  let lpTimer=null, lpProgress=0;
+  let rune=null, isJetting=false;
+  let audioCtx=null;
+
+  const setEnergy = () => {
+    const map={0:'0%',2:'33%',3:'66%',4:'100%'};
+    energyFill.style.width = map[stage]||'0%';
+  };
+  const setHint = txt => { hint.textContent=txt; };
+
+  // --- Audio ---
+  const playAwakenSound = () => {
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.frequency.setValueAtTime(200, audioCtx.currentTime);
+    o.frequency.linearRampToValueAtTime(800, audioCtx.currentTime+1);
+    g.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0, audioCtx.currentTime+1.5);
+    o.start(); o.stop(audioCtx.currentTime+1.5);
+  };
+
+  // --- Awaken sequence ---
+  const awaken = () => {
+    stage=4; setEnergy(); hint.style.display='none';
+    playAwakenSound(); triggerBurst(500);
+    setTimeout(()=>{ 
+      let sc=1; 
+      const grow=()=>{ sc+=0.05; cracks.scale.setScalar(sc); crackMat.opacity-=0.04; if(sc<1.5) requestAnimationFrame(grow); else cracks.visible=false; }; 
+      grow(); glowMat.opacity=0.6; 
+    },300);
+    setTimeout(()=>{ 
+      rotSpeed=0.05; 
+      const target=new THREE.Color(0xFFD700);
+      const lerp=()=>{ coreMat.color.lerp(target,0.06); if(coreMat.color.getHex()!==0xFFD700) requestAnimationFrame(lerp); };
+      lerp();
+    },600);
+    setTimeout(()=>{ flash.style.opacity='1'; setTimeout(()=>flash.style.opacity='0',200); },1000);
+    setTimeout(()=>{ glowMat.color.set(0xFFD700); glowMat.opacity=0.25; isJetting=true; },1500);
+    setTimeout(()=>{ 
+      awakened.style.display='block'; 
+      const txt="STELLAR CORE AWAKENED"; let i=0;
+      const type=()=>{ awakenTitle.textContent+=txt[i]; i++; if(i<txt.length) setTimeout(type,80); else awakenSub.style.opacity='1'; };
+      type();
+    },2500);
+  };
+
+  // --- Raycaster for click ---
+  const ray=new THREE.Raycaster(), ndcV=new THREE.Vector2();
+  const onDown = e => {
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const cx=e.touches?e.touches[0].clientX:e.clientX;
+    const cy=e.touches?e.touches[0].clientY:e.clientY;
+    ndcV.x=(cx/innerWidth)*2-1; ndcV.y=-(cy/innerHeight)*2+1;
+    isDragging=true; lastX=cx;
+
+    if(stage<2){
+      ray.setFromCamera(ndcV, camera);
+      if(ray.intersectObject(core).length>0){
+        clickCount++; crackMat.opacity=Math.min(1,crackMat.opacity+0.15);
+        triggerBurst(50);
+        if(clickCount>=3){ stage=2; crackMat.color.set(0xff8800); setEnergy(); setHint('旋转星球，寻找符文'); }
+      }
+    } else if(stage===3){
+      lpProgress=0;
+      lpTimer=setInterval(()=>{ lpProgress+=4; if(lpProgress>=100){ clearInterval(lpTimer); lpTimer=null; awaken(); } },80);
+    }
+  };
+  const onUp = () => { 
+    isDragging=false; 
+    if(lpTimer){ clearInterval(lpTimer); lpTimer=null; lpProgress=0; }
+  };
+  const onMove = e => {
+    const cx=e.touches?e.touches[0].clientX:e.clientX;
+    if(isDragging && stage===2){
+      const d=(cx-lastX)*0.012; rotateTotal+=Math.abs(d*50); planet.rotation.y+=d;
+      if(rotateTotal>=180 && !rune){
+        rune=new THREE.Mesh(new THREE.PlaneGeometry(0.07,0.07), new THREE.MeshBasicMaterial({color:0x00ffff,side:THREE.DoubleSide}));
+        rune.position.set(0,0,-0.16); planet.add(rune);
+        stage=3; setEnergy(); setHint('长按符文激活核心');
+      }
+    }
+    lastX=cx;
+  };
+
+  window.addEventListener('mousedown',onDown);
+  window.addEventListener('touchstart',onDown,{passive:true});
+  window.addEventListener('mouseup',onUp);
+  window.addEventListener('touchend',onUp);
+  window.addEventListener('mousemove',onMove);
+  window.addEventListener('touchmove',onMove,{passive:true});
+
+  // --- AR events ---
+  anchor.onTargetFound = () => {
+    scanner.style.display='none';
+    hudL.style.display='block'; hudR.style.display='block'; hint.style.display='block';
+    setEnergy(); setHint('点击星球唤醒能量');
+  };
+  anchor.onTargetLost = () => {
+    scanner.style.display='block';
+    hudL.style.display='none'; hudR.style.display='none'; hint.style.display='none';
+  };
+
+  // Jet particles
+  const jetGeo=new THREE.BufferGeometry();
+  const jetPos=new Float32Array(300*3); jetGeo.setAttribute('position',new THREE.BufferAttribute(jetPos,3));
+  const jetVel=new Float32Array(300*3); let jetPtr=0;
+  const jet=new THREE.Points(jetGeo,new THREE.PointsMaterial({size:0.002,color:0xFFD700,transparent:true,opacity:0.7}));
+  root.add(jet);
+
+  // --- Start ---
+  await mindarThree.start();
+
+  // --- Render loop ---
+  renderer.setAnimationLoop(() => {
+    planet.rotation.y += rotSpeed;
+    orbit.rotation.y += 0.003;
+
+    if(burstActive){
+      const el=Date.now()-burstStart;
+      const attr=burstGeo.attributes.position;
+      if(el<1500){
+        burstMat.opacity=1-(el/1500);
+        for(let i=0;i<burstCount;i++){
+          attr.array[i*3]+=burstVel[i*3];
+          attr.array[i*3+1]+=burstVel[i*3+1];
+          attr.array[i*3+2]+=burstVel[i*3+2];
+        }
+        attr.needsUpdate=true;
+      } else { burstActive=false; }
+    }
+
+    if(isJetting){
+      const jAttr=jetGeo.attributes.position;
+      for(let i=0;i<3;i++){
+        const idx=jetPtr*3, sp=0.01+Math.random()*0.02, phi=Math.acos(2*Math.random()-1), th=Math.random()*6.28;
+        jAttr.array[idx]=(Math.random()-0.5)*0.05;
+        jAttr.array[idx+1]=(Math.random()-0.5)*0.05;
+        jAttr.array[idx+2]=(Math.random()-0.5)*0.05;
+        jetVel[idx]=sp*Math.sin(phi)*Math.cos(th);
+        jetVel[idx+1]=sp*Math.sin(phi)*Math.sin(th);
+        jetVel[idx+2]=sp*Math.cos(phi);
+        jetPtr=(jetPtr+1)%300;
+      }
+      const jAttr2=jetGeo.attributes.position;
+      for(let i=0;i<300;i++){
+        jAttr2.array[i*3]+=jetVel[i*3];
+        jAttr2.array[i*3+1]+=jetVel[i*3+1];
+        jAttr2.array[i*3+2]+=jetVel[i*3+2];
+      }
+      jAttr2.needsUpdate=true;
+    }
+
+    // Long press ring
+    pCtx.clearRect(0,0,progressCanvas.width,progressCanvas.height);
+    if(lpProgress>0){
+      const cx=progressCanvas.width/2, cy=progressCanvas.height/2;
+      pCtx.beginPath(); pCtx.arc(cx,cy,55,0,Math.PI*2);
+      pCtx.strokeStyle='rgba(255,255,255,0.15)'; pCtx.lineWidth=10; pCtx.stroke();
+      pCtx.beginPath(); pCtx.arc(cx,cy,55,-Math.PI/2,-Math.PI/2+Math.PI*2*lpProgress/100);
+      pCtx.strokeStyle='#00ffff'; pCtx.lineWidth=10; pCtx.stroke();
+    }
+
+    renderer.render(scene, camera);
+  });
+})();
+</script>
+</body>
+</html>
