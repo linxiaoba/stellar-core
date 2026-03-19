@@ -7,9 +7,13 @@
   <style>
     *{margin:0;padding:0;box-sizing:border-box;}
     body{background:#000;overflow:hidden;font-family:monospace;}
+
     #video{position:fixed;top:0;left:0;width:100vw;height:100vh;object-fit:cover;z-index:0;}
-    #threeCanvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:1;pointer-events:none;}
-    /* 2D特效层（陨石/能量球/拖尾） */
+    /* 星空滤镜层 */
+    #starFilter{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:1;pointer-events:none;display:none;}
+    /* 运动检测用的隐藏canvas */
+    #motionCanvas{position:fixed;top:0;left:0;width:160px;height:120px;z-index:0;opacity:0;pointer-events:none;}
+    #threeCanvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2;pointer-events:none;}
     #fxCanvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:3;pointer-events:none;}
     #ui{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:4;pointer-events:none;}
 
@@ -27,7 +31,7 @@
     #startBtn h1{color:#FFD700;font-size:30px;letter-spacing:5px;margin-bottom:8px;text-shadow:0 0 24px #FFD700;}
     #startBtn .sub{color:#00ff88;font-size:14px;letter-spacing:3px;margin-bottom:48px;}
     #startBtnInner{background:transparent;border:2px solid #00ff88;color:#00ff88;font-family:monospace;font-size:16px;padding:14px 44px;cursor:pointer;letter-spacing:2px;border-radius:4px;box-shadow:0 0 16px rgba(0,255,136,0.25);}
-    #startBtnInner:active{background:rgba(0,255,136,0.15);transform:scale(0.97);}
+    #startBtnInner:active{background:rgba(0,255,136,0.15);}
     .tip-small{color:rgba(255,255,255,0.3);font-size:11px;margin-top:20px;letter-spacing:1px;}
 
     /* 边缘扫描 */
@@ -59,6 +63,11 @@
     #energyFill{width:0%;height:100%;background:linear-gradient(90deg,#ff3300,#FFD700);transition:width 0.5s;border-radius:3px;}
     #energyVal{color:#FFD700;font-size:10px;margin-top:4px;text-align:right;}
 
+    /* 六星球收集槽 */
+    #planetSlots{position:absolute;top:16px;left:16px;display:none;flex-direction:row;gap:8px;align-items:center;}
+    .pslot{width:36px;height:36px;border-radius:50%;border:2px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.4);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:8px;color:rgba(255,255,255,0.3);}
+    .pslot canvas{width:100%;height:100%;border-radius:50%;}
+
     /* 符文计数 */
     #runeCounter{position:absolute;top:70px;right:16px;display:none;text-align:right;}
     .rune-dot{display:inline-block;width:12px;height:12px;border-radius:50%;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.3);margin-left:4px;transition:all 0.3s;}
@@ -67,22 +76,41 @@
     /* 提示 */
     #hint{position:absolute;bottom:50px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.12);color:#fff;font-size:14px;padding:10px 22px;border-radius:6px;white-space:nowrap;display:none;letter-spacing:1px;}
 
-    /* 能量收集进度（激活阶段） */
+    /* 能量收集进度 */
     #collectBar{position:absolute;bottom:100px;left:50%;transform:translateX(-50%);width:200px;display:none;}
     #collectLabel{color:#FFD700;font-size:11px;text-align:center;margin-bottom:6px;letter-spacing:1px;}
     #collectBg{height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;border:1px solid rgba(255,215,0,0.2);}
     #collectFill{width:0%;height:100%;background:linear-gradient(90deg,#ff6600,#FFD700,#fff);border-radius:4px;transition:width 0.2s;}
 
+    /* 运动物体检测框 */
+    .motionBox{position:fixed;border:2px solid #003aff;box-shadow:0 0 8px rgba(0,58,255,0.6);border-radius:4px;pointer-events:all;cursor:pointer;z-index:6;transition:opacity 0.3s;animation:mBlink 1s ease-in-out infinite;}
+    @keyframes mBlink{0%,100%{border-color:#003aff;box-shadow:0 0 8px rgba(0,58,255,0.6);}50%{border-color:#00aaff;box-shadow:0 0 16px rgba(0,170,255,0.9);}}
+
     /* 闪光 */
     #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:20;transition:opacity 0.12s;}
+
+    /* 时空穿越特效 */
+    #warpScreen{position:fixed;inset:0;z-index:40;display:none;pointer-events:none;overflow:hidden;}
+    #warpCanvas{position:absolute;top:0;left:0;width:100%;height:100%;}
 
     /* 觉醒 */
     #awakened{position:fixed;top:36%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:25;display:none;pointer-events:none;}
     #awakened h1{color:#FFD700;font-size:24px;letter-spacing:4px;text-shadow:0 0 20px #FFD700,0 0 50px rgba(255,215,0,0.5);}
     #awakened p{color:#00ff88;font-size:13px;margin-top:12px;opacity:0;transition:opacity 1s;letter-spacing:2px;}
 
-    /* 重启 */
-    #restartBtn{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);border:1px solid rgba(255,215,0,0.4);color:#FFD700;font-family:monospace;font-size:13px;padding:10px 28px;border-radius:4px;cursor:pointer;letter-spacing:2px;z-index:30;display:none;pointer-events:all;}
+    /* 底部按钮 */
+    #bottomBtn{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);font-family:monospace;font-size:13px;padding:10px 28px;border-radius:4px;cursor:pointer;letter-spacing:2px;z-index:30;display:none;pointer-events:all;border:1px solid rgba(255,215,0,0.4);background:rgba(0,0,0,0.7);color:#FFD700;}
+
+    /* 警告界面 */
+    #warningScreen{position:fixed;inset:0;z-index:35;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.85);}
+    #warningScreen h1{color:#ff0000;font-size:36px;letter-spacing:4px;text-shadow:0 0 20px #ff0000;animation:warnPulse 0.5s ease-in-out infinite;}
+    @keyframes warnPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.7;transform:scale(1.05)}}
+    #warningScreen p{color:#ff6600;font-size:14px;margin-top:16px;letter-spacing:2px;}
+
+    /* 超级星球标题 */
+    #superTitle{position:fixed;top:20%;left:50%;transform:translateX(-50%);text-align:center;z-index:26;display:none;pointer-events:none;}
+    #superTitle h1{font-size:20px;letter-spacing:3px;background:linear-gradient(90deg,#ff0080,#ff8c00,#ffe600,#00ff88,#00d4ff,#cc00ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-shadow:none;animation:rainbow 3s linear infinite;}
+    @keyframes rainbow{0%{filter:hue-rotate(0deg)}100%{filter:hue-rotate(360deg)}}
 
     #touchLayer{position:fixed;inset:0;z-index:5;display:none;}
   </style>
@@ -90,6 +118,8 @@
 <body>
 
 <video id="video" autoplay playsinline muted></video>
+<canvas id="starFilter"></canvas>
+<canvas id="motionCanvas"></canvas>
 <canvas id="threeCanvas"></canvas>
 <canvas id="fxCanvas"></canvas>
 
@@ -99,6 +129,9 @@
 </div>
 
 <div id="ui">
+  <!-- 六星球槽（第二颗星球起显示） -->
+  <div id="planetSlots"></div>
+
   <div id="scanner">
     <div class="corner tl"></div><div class="corner tr"></div>
     <div class="corner bl"></div><div class="corner br"></div>
@@ -138,18 +171,53 @@
 </div>
 
 <div id="flash"></div>
+
+<!-- 时空穿越 -->
+<div id="warpScreen"><canvas id="warpCanvas"></canvas></div>
+
+<!-- 觉醒文字 -->
 <div id="awakened">
   <h1 id="awakenTitle"></h1>
   <p id="awakenSub">异常能量体已完全激活</p>
 </div>
-<button id="restartBtn">↺ 再次体验</button>
+
+<!-- 超级星球标题 -->
+<div id="superTitle"><h1 id="superTitleText"></h1></div>
+
+<!-- 警告界面 -->
+<div id="warningScreen">
+  <h1>⚠ 警告 WARNING ⚠</h1>
+  <p>检测到异常能量聚集 · 超级星核即将觉醒</p>
+</div>
+
+<button id="bottomBtn">↺ 继续探索</button>
 <div id="touchLayer"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 
-// ── 加载动画 ──
+// ══════════════════════════════════════
+// 全局游戏状态
+// ══════════════════════════════════════
+const THEMES=[
+  {id:'VOID',  core:'#1a0a2e',glow:'#6600ff',crack:'#ff3300',atmos:'#4400aa'},
+  {id:'TERRA', core:'#0a1a0a',glow:'#00ff66',crack:'#ff6600',atmos:'#004422'},
+  {id:'INFERNO',core:'#1a0505',glow:'#ff2200',crack:'#ffaa00',atmos:'#660000'},
+  {id:'AQUA',  core:'#001a2e',glow:'#0088ff',crack:'#00ffff',atmos:'#002244'},
+  {id:'SOLAR', core:'#1a1a00',glow:'#ffdd00',crack:'#ff6600',atmos:'#443300'},
+  {id:'NEBULA',core:'#0a001a',glow:'#cc00ff',crack:'#ff00aa',atmos:'#330044'},
+];
+
+// 打乱顺序，保证每个颜色只出现一次
+const shuffledThemes=[...THEMES].sort(()=>Math.random()-0.5);
+let currentThemeIdx=0;
+let completedPlanets=[]; // 存已完成的星球缩略图canvas
+let isSuperPlanet=false;
+
+// ══════════════════════════════════════
+// 加载动画
+// ══════════════════════════════════════
 let lp=0; const ls=['LOADING ENGINE...','BUILDING PLANET...','INIT PARTICLES...','READY'];
 let li=0;
 const lv=setInterval(()=>{
@@ -159,21 +227,39 @@ const lv=setInterval(()=>{
 },200);
 setTimeout(()=>{ $('loadingScreen').style.display='none'; $('startBtn').style.display='flex'; },2800);
 
-// ── 随机星球颜色主题 ──
-const THEMES=[
-  {core:'#1a0a2e',glow:'#6600ff',crack:'#ff3300',atmos:'#4400aa',name:'VOID'},
-  {core:'#0a1a0a',glow:'#00ff66',crack:'#ff6600',atmos:'#004422',name:'TERRA'},
-  {core:'#1a0505',glow:'#ff2200',crack:'#ffaa00',atmos:'#660000',name:'INFERNO'},
-  {core:'#001a2e',glow:'#0088ff',crack:'#00ffff',atmos:'#002244',name:'AQUA'},
-  {core:'#1a1a00',glow:'#ffdd00',crack:'#ff6600',atmos:'#443300',name:'SOLAR'},
-  {core:'#0a001a',glow:'#cc00ff',crack:'#ff00aa',atmos:'#330044',name:'NEBULA'},
-];
-const THEME = THEMES[Math.floor(Math.random()*THEMES.length)];
+// ══════════════════════════════════════
+// 星空滤镜
+// ══════════════════════════════════════
+const sf=$('starFilter'); sf.width=window.innerWidth; sf.height=window.innerHeight;
+const sfc=sf.getContext('2d');
+// 生成静态星点
+const STARS=[];
+for(let i=0;i<200;i++) STARS.push({x:Math.random()*sf.width,y:Math.random()*sf.height,r:Math.random()*1.5+0.3,a:Math.random()});
+let starFilterOn=false, starAlpha=0;
 
-// ── Three.js ──
+function drawStarFilter(){
+  sfc.clearRect(0,0,sf.width,sf.height);
+  if(starAlpha<=0) return;
+  // 深蓝渐变叠加
+  const g=sfc.createLinearGradient(0,0,0,sf.height);
+  g.addColorStop(0,`rgba(0,5,30,${starAlpha*0.55})`);
+  g.addColorStop(1,`rgba(0,0,15,${starAlpha*0.35})`);
+  sfc.fillStyle=g; sfc.fillRect(0,0,sf.width,sf.height);
+  // 星点
+  STARS.forEach(s=>{
+    const twinkle=0.5+0.5*Math.sin(Date.now()*0.001+s.a*10);
+    sfc.beginPath(); sfc.arc(s.x,s.y,s.r,0,6.28);
+    sfc.fillStyle=`rgba(180,210,255,${starAlpha*twinkle*0.8})`;
+    sfc.fill();
+  });
+}
+
+// ══════════════════════════════════════
+// Three.js 初始化
+// ══════════════════════════════════════
 const canvas=$('threeCanvas');
 const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
 renderer.setClearColor(0x000000,0);
 renderer.setSize(window.innerWidth,window.innerHeight);
 
@@ -183,158 +269,223 @@ cam.position.set(0,0,1.2);
 
 window.addEventListener('resize',()=>{
   renderer.setSize(window.innerWidth,window.innerHeight);
-  cam.aspect=window.innerWidth/window.innerHeight;
-  cam.updateProjectionMatrix();
+  cam.aspect=window.innerWidth/window.innerHeight; cam.updateProjectionMatrix();
   fx.width=window.innerWidth; fx.height=window.innerHeight;
+  sf.width=window.innerWidth; sf.height=window.innerHeight;
 });
 
-// 灯光
 scene.add(new THREE.AmbientLight(0x222233));
 const ptL=new THREE.PointLight(0xffffff,2.5); ptL.position.set(1,1,1); scene.add(ptL);
-const ptL2=new THREE.PointLight(new THREE.Color(THEME.glow),1.5); ptL2.position.set(-1,-0.5,0.5); scene.add(ptL2);
+let ptL2=new THREE.PointLight(0xffffff,1.5); ptL2.position.set(-1,-0.5,0.5); scene.add(ptL2);
 
-// ── 程序化星球贴图 ──
-function makePlanetTex(theme){
+// ══════════════════════════════════════
+// 程序化星球贴图
+// ══════════════════════════════════════
+function makePlanetTex(theme,isSuperPlanet=false){
   const sz=512, tc=document.createElement('canvas'); tc.width=tc.height=sz;
   const ctx=tc.getContext('2d');
-  // 底色渐变
-  const g=ctx.createRadialGradient(sz/2,sz/2,0,sz/2,sz/2,sz/2);
-  const c=new THREE.Color(theme.core);
-  g.addColorStop(0,`hsl(${Math.round(c.getHSL({}).h*360)},60%,18%)`);
-  g.addColorStop(0.5,`hsl(${Math.round(c.getHSL({}).h*360)},50%,10%)`);
-  g.addColorStop(1,'#000');
-  ctx.fillStyle=g; ctx.fillRect(0,0,sz,sz);
-  // 大陆板块
-  const gc=new THREE.Color(theme.glow);
-  for(let i=0;i<6;i++){
-    const cx=Math.random()*sz, cy=Math.random()*sz, r=30+Math.random()*80;
-    const bg=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
-    bg.addColorStop(0,`hsla(${Math.round(gc.getHSL({}).h*360)},70%,30%,0.5)`);
-    bg.addColorStop(1,'transparent');
-    ctx.fillStyle=bg; ctx.beginPath(); ctx.arc(cx,cy,r,0,6.28); ctx.fill();
-  }
-  // 细节噪点（模拟地形）
-  for(let i=0;i<2000;i++){
-    const x=Math.random()*sz, y=Math.random()*sz, r=Math.random()*3;
-    const bright=Math.random();
-    ctx.fillStyle=`rgba(${bright>0.7?255:100},${bright>0.8?200:50},${bright>0.9?255:100},${Math.random()*0.3})`;
-    ctx.beginPath(); ctx.arc(x,y,r,0,6.28); ctx.fill();
-  }
-  // 裂缝光线（不画经纬线！）
-  const cc=new THREE.Color(theme.crack);
-  ctx.strokeStyle=`rgba(${Math.round(cc.r*255)},${Math.round(cc.g*255)},${Math.round(cc.b*255)},0.4)`;
-  ctx.lineWidth=1.5;
-  for(let i=0;i<8;i++){
-    ctx.beginPath();
-    let x=Math.random()*sz, y=Math.random()*sz;
-    ctx.moveTo(x,y);
-    for(let j=0;j<4;j++){ x+=Math.random()*80-40; y+=Math.random()*80-40; ctx.lineTo(x,y); }
-    ctx.stroke();
-  }
-  // 发光点（城市/火山）
-  for(let i=0;i<30;i++){
-    const x=Math.random()*sz, y=Math.random()*sz;
-    const pg=ctx.createRadialGradient(x,y,0,x,y,6);
-    pg.addColorStop(0,`hsla(${Math.round(gc.getHSL({}).h*360)},100%,80%,0.8)`);
-    pg.addColorStop(1,'transparent');
-    ctx.fillStyle=pg; ctx.beginPath(); ctx.arc(x,y,6,0,6.28); ctx.fill();
+  if(isSuperPlanet){
+    // 彩虹超级星球
+    for(let y=0;y<sz;y++){
+      const g=ctx.createLinearGradient(0,0,sz,0);
+      const hue=(y/sz*360+Date.now()*0.02)%360;
+      g.addColorStop(0,`hsl(${hue},80%,20%)`);
+      g.addColorStop(0.33,`hsl(${(hue+120)%360},80%,25%)`);
+      g.addColorStop(0.66,`hsl(${(hue+240)%360},80%,20%)`);
+      g.addColorStop(1,`hsl(${hue},80%,15%)`);
+      ctx.fillStyle=g; ctx.fillRect(0,y,sz,1);
+    }
+    // 彩色大陆
+    for(let i=0;i<8;i++){
+      const cx=Math.random()*sz,cy=Math.random()*sz,r=40+Math.random()*70;
+      const hue=Math.random()*360;
+      const bg=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+      bg.addColorStop(0,`hsla(${hue},100%,60%,0.6)`);
+      bg.addColorStop(1,'transparent');
+      ctx.fillStyle=bg; ctx.beginPath(); ctx.arc(cx,cy,r,0,6.28); ctx.fill();
+    }
+  } else {
+    const gc=new THREE.Color(theme.core);
+    const g=ctx.createRadialGradient(sz/2,sz/2,0,sz/2,sz/2,sz/2);
+    const h={}; gc.getHSL(h);
+    g.addColorStop(0,`hsl(${Math.round(h.h*360)},60%,20%)`);
+    g.addColorStop(0.5,`hsl(${Math.round(h.h*360)},50%,10%)`);
+    g.addColorStop(1,'#000');
+    ctx.fillStyle=g; ctx.fillRect(0,0,sz,sz);
+    // 大陆
+    const gg=new THREE.Color(theme.glow);
+    for(let i=0;i<6;i++){
+      const cx=Math.random()*sz,cy=Math.random()*sz,r=30+Math.random()*80;
+      const gh={}; gg.getHSL(gh);
+      const bg=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+      bg.addColorStop(0,`hsla(${Math.round(gh.h*360)},70%,30%,0.5)`);
+      bg.addColorStop(1,'transparent');
+      ctx.fillStyle=bg; ctx.beginPath(); ctx.arc(cx,cy,r,0,6.28); ctx.fill();
+    }
+    // 地形噪点
+    for(let i=0;i<1500;i++){
+      const x=Math.random()*sz,y=Math.random()*sz,r2=Math.random()*2.5;
+      const br=Math.random();
+      ctx.fillStyle=`rgba(${br>0.7?200:80},${br>0.8?160:40},${br>0.9?200:80},${Math.random()*0.25})`;
+      ctx.beginPath(); ctx.arc(x,y,r2,0,6.28); ctx.fill();
+    }
+    // 裂缝（不是经纬线）
+    const cc=new THREE.Color(theme.crack);
+    ctx.strokeStyle=`rgba(${Math.round(cc.r*255)},${Math.round(cc.g*255)},${Math.round(cc.b*255)},0.35)`;
+    ctx.lineWidth=1.5;
+    for(let i=0;i<10;i++){
+      ctx.beginPath(); let x=Math.random()*sz,y=Math.random()*sz; ctx.moveTo(x,y);
+      for(let j=0;j<5;j++){ x+=Math.random()*70-35; y+=Math.random()*70-35; ctx.lineTo(x,y); }
+      ctx.stroke();
+    }
+    // 发光点
+    for(let i=0;i<25;i++){
+      const x=Math.random()*sz,y=Math.random()*sz;
+      const ph={}; gg.getHSL(ph);
+      const pg=ctx.createRadialGradient(x,y,0,x,y,5);
+      pg.addColorStop(0,`hsla(${Math.round(ph.h*360)},100%,80%,0.7)`);
+      pg.addColorStop(1,'transparent');
+      ctx.fillStyle=pg; ctx.beginPath(); ctx.arc(x,y,5,0,6.28); ctx.fill();
+    }
   }
   return new THREE.CanvasTexture(tc);
 }
 
-const planetTex=makePlanetTex(THEME);
-const coreMat=new THREE.MeshStandardMaterial({
-  map:planetTex, roughness:0.6, metalness:0.3,
-  emissive:new THREE.Color(THEME.core), emissiveIntensity:0.2
-});
-const planet=new THREE.Group(); planet.position.set(0,0.05,0); scene.add(planet);
-const core=new THREE.Mesh(new THREE.SphereGeometry(0.18,64,64),coreMat); planet.add(core);
+// 缩略图（用于星球槽）
+function makeThumbnailCanvas(theme){
+  const sz=64, tc=document.createElement('canvas'); tc.width=tc.height=sz;
+  const ctx=tc.getContext('2d');
+  const gc=new THREE.Color(theme.glow);
+  const g=ctx.createRadialGradient(sz/2,sz/2,0,sz/2,sz/2,sz/2);
+  const h={}; gc.getHSL(h);
+  g.addColorStop(0,`hsl(${Math.round(h.h*360)},80%,40%)`);
+  g.addColorStop(0.6,`hsl(${Math.round(h.h*360)},60%,15%)`);
+  g.addColorStop(1,'#000');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sz/2,sz/2,sz/2,0,6.28); ctx.fill();
+  // 简单大陆点
+  for(let i=0;i<8;i++){
+    const x=Math.random()*sz,y=Math.random()*sz,r=3+Math.random()*5;
+    ctx.fillStyle=`hsla(${Math.round(h.h*360)},100%,70%,0.5)`;
+    ctx.beginPath(); ctx.arc(x,y,r,0,6.28); ctx.fill();
+  }
+  return tc;
+}
 
-const crackMat=new THREE.MeshBasicMaterial({color:new THREE.Color(THEME.crack),wireframe:true,transparent:true,opacity:0.35});
-planet.add(new THREE.Mesh(new THREE.SphereGeometry(0.184,18,18),crackMat));
+// ══════════════════════════════════════
+// 星球建造
+// ══════════════════════════════════════
+let planet, core, coreMat, crackMat, glowMat, atmosMat;
+let orbit, orbit2, runeObjs=[];
+let planetScale=1, rotSpeed=0.008;
 
-const glowMat=new THREE.MeshBasicMaterial({color:new THREE.Color(THEME.glow),transparent:true,opacity:0.1,side:THREE.BackSide});
-const glow=new THREE.Mesh(new THREE.SphereGeometry(0.23,32,32),glowMat); planet.add(glow);
+function buildPlanet(theme, isSuper=false){
+  // 清理旧星球
+  if(planet) scene.remove(planet);
 
-const atmosMat=new THREE.MeshBasicMaterial({color:new THREE.Color(THEME.atmos),transparent:true,opacity:0.06,side:THREE.BackSide});
-planet.add(new THREE.Mesh(new THREE.SphereGeometry(0.27,32,32),atmosMat));
+  planet=new THREE.Group(); planet.position.set(0,0.05,0); scene.add(planet);
+  planetScale=1; rotSpeed=0.008;
 
-// ── 符文（SVG→Canvas贴图，3种花纹）──
+  if(isSuper){
+    // 超级星球：更大、彩虹材质
+    coreMat=new THREE.MeshStandardMaterial({
+      map:makePlanetTex(null,true), roughness:0.4, metalness:0.6,
+      emissive:new THREE.Color(0x220022), emissiveIntensity:0.5
+    });
+    core=new THREE.Mesh(new THREE.SphereGeometry(0.22,64,64),coreMat); planet.add(core);
+    crackMat=new THREE.MeshBasicMaterial({color:0xffffff,wireframe:true,transparent:true,opacity:0.15});
+    planet.add(new THREE.Mesh(new THREE.SphereGeometry(0.226,20,20),crackMat));
+    glowMat=new THREE.MeshBasicMaterial({color:0xff88ff,transparent:true,opacity:0.2,side:THREE.BackSide});
+    const gm=new THREE.Mesh(new THREE.SphereGeometry(0.28,32,32),glowMat); planet.add(gm);
+    glow=gm;
+    atmosMat=new THREE.MeshBasicMaterial({color:0xaa00ff,transparent:true,opacity:0.08,side:THREE.BackSide});
+    planet.add(new THREE.Mesh(new THREE.SphereGeometry(0.32,32,32),atmosMat));
+    ptL2.color.set(0xff00ff);
+    runeObjs=[];
+  } else {
+    coreMat=new THREE.MeshStandardMaterial({
+      map:makePlanetTex(theme), roughness:0.6, metalness:0.3,
+      emissive:new THREE.Color(theme.core), emissiveIntensity:0.2
+    });
+    core=new THREE.Mesh(new THREE.SphereGeometry(0.18,64,64),coreMat); planet.add(core);
+    crackMat=new THREE.MeshBasicMaterial({color:new THREE.Color(theme.crack),wireframe:true,transparent:true,opacity:0.35});
+    planet.add(new THREE.Mesh(new THREE.SphereGeometry(0.184,18,18),crackMat));
+    glowMat=new THREE.MeshBasicMaterial({color:new THREE.Color(theme.glow),transparent:true,opacity:0.1,side:THREE.BackSide});
+    const gm=new THREE.Mesh(new THREE.SphereGeometry(0.23,32,32),glowMat); planet.add(gm);
+    glow=gm;
+    atmosMat=new THREE.MeshBasicMaterial({color:new THREE.Color(theme.atmos),transparent:true,opacity:0.06,side:THREE.BackSide});
+    planet.add(new THREE.Mesh(new THREE.SphereGeometry(0.27,32,32),atmosMat));
+    ptL2.color.set(new THREE.Color(theme.glow));
+
+    // 符文
+    runeObjs=[];
+    const RUNE_POS=[
+      new THREE.Vector3(0.13,0.08,-0.16),
+      new THREE.Vector3(-0.12,-0.06,-0.15),
+      new THREE.Vector3(0.05,0.14,-0.17),
+    ];
+    for(let i=0;i<3;i++){
+      const mat=new THREE.MeshBasicMaterial({map:makeRuneTex(i),side:THREE.DoubleSide,transparent:true,opacity:0,depthWrite:false});
+      const mesh=new THREE.Mesh(new THREE.PlaneGeometry(0.1,0.1),mat);
+      mesh.position.copy(RUNE_POS[i]); mesh.lookAt(new THREE.Vector3(0,0,0));
+      planet.add(mesh); runeObjs.push({mesh,found:false,idx:i});
+    }
+  }
+
+  // 轨道粒子
+  const mkPts=(n,r0,r1,sz2,col,op=0.8)=>{
+    const geo=new THREE.BufferGeometry(), pos=new Float32Array(n*3);
+    for(let i=0;i<n;i++){
+      const r=r0+Math.random()*(r1-r0), phi=Math.acos(2*Math.random()-1), th=Math.random()*6.28;
+      pos[i*3]=r*Math.sin(phi)*Math.cos(th); pos[i*3+1]=r*Math.sin(phi)*Math.sin(th); pos[i*3+2]=r*Math.cos(phi);
+    }
+    geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    return new THREE.Points(geo,new THREE.PointsMaterial({size:sz2,color:col,transparent:true,opacity:op}));
+  };
+  orbit=mkPts(250,0.28,0.44,0.004,0x88aaff); planet.add(orbit);
+  orbit2=mkPts(isSuper?200:100,0.32,isSuper?0.6:0.5,0.004,isSuper?0xffaaff:new THREE.Color(theme?theme.glow:'#ffffff').getHex(),0.4);
+  planet.add(orbit2);
+}
+
+// 符文贴图
 function makeRuneTex(idx){
   const sz=128, tc=document.createElement('canvas'); tc.width=tc.height=sz;
   const ctx=tc.getContext('2d');
-  ctx.strokeStyle='#00ffff'; ctx.lineWidth=2; ctx.shadowColor='#00ffff'; ctx.shadowBlur=8;
-  const cx=sz/2, cy=sz/2, R=48;
-  if(idx===0){ // 六芒星
+  ctx.strokeStyle='#00ffff'; ctx.lineWidth=2.5; ctx.shadowColor='#00ffff'; ctx.shadowBlur=10;
+  const cx=sz/2, cy=sz/2, R=46;
+  if(idx===0){
     for(let i=0;i<6;i++){
       const a=i*Math.PI/3, b=a+Math.PI/3;
-      ctx.beginPath();
-      ctx.moveTo(cx+R*Math.cos(a),cy+R*Math.sin(a));
-      ctx.lineTo(cx+R*Math.cos(b),cy+R*Math.sin(b));
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+R*Math.cos(a),cy+R*Math.sin(a)); ctx.lineTo(cx+R*Math.cos(b),cy+R*Math.sin(b)); ctx.stroke();
     }
-    ctx.beginPath(); ctx.arc(cx,cy,R*0.4,0,6.28); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx,cy,6,0,6.28); ctx.fillStyle='#00ffff'; ctx.fill();
-  } else if(idx===1){ // 三角内切圆
+    for(let i=0;i<6;i++){
+      const a=i*Math.PI/3;
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+R*0.6*Math.cos(a),cy+R*0.6*Math.sin(a)); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.arc(cx,cy,R*0.35,0,6.28); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx,cy,7,0,6.28); ctx.fillStyle='rgba(0,255,255,0.9)'; ctx.fill();
+  } else if(idx===1){
     for(let i=0;i<3;i++){
-      const a=i*Math.PI*2/3-Math.PI/2;
-      const nx=i===2?0:Math.cos((i+1)*Math.PI*2/3-Math.PI/2);
-      const ny=i===2?0:Math.sin((i+1)*Math.PI*2/3-Math.PI/2);
-      ctx.beginPath();
-      ctx.moveTo(cx+R*Math.cos(a),cy+R*Math.sin(a));
-      ctx.lineTo(cx+R*Math.cos(a+Math.PI*2/3),cy+R*Math.sin(a+Math.PI*2/3));
-      ctx.stroke();
+      const a1=i*Math.PI*2/3-Math.PI/2, a2=(i+1)*Math.PI*2/3-Math.PI/2;
+      ctx.beginPath(); ctx.moveTo(cx+R*Math.cos(a1),cy+R*Math.sin(a1)); ctx.lineTo(cx+R*Math.cos(a2),cy+R*Math.sin(a2)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+R*Math.cos(a1),cy+R*Math.sin(a1)); ctx.stroke();
     }
     ctx.beginPath(); ctx.arc(cx,cy,R*0.5,0,6.28); ctx.stroke();
-    for(let i=0;i<3;i++){
-      const a=i*Math.PI*2/3-Math.PI/2;
-      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+R*Math.cos(a),cy+R*Math.sin(a)); ctx.stroke();
-    }
-  } else { // 八卦风
+    ctx.beginPath(); ctx.arc(cx,cy,6,0,6.28); ctx.fillStyle='rgba(0,255,255,0.9)'; ctx.fill();
+  } else {
     for(let i=0;i<8;i++){
-      const a=i*Math.PI/4, b=a+Math.PI/8;
-      ctx.beginPath();
-      ctx.moveTo(cx+R*0.5*Math.cos(a),cy+R*0.5*Math.sin(a));
-      ctx.lineTo(cx+R*Math.cos(b),cy+R*Math.sin(b));
-      ctx.stroke();
+      const a=i*Math.PI/4;
+      ctx.beginPath(); ctx.moveTo(cx+R*0.4*Math.cos(a),cy+R*0.4*Math.sin(a)); ctx.lineTo(cx+R*Math.cos(a),cy+R*Math.sin(a)); ctx.stroke();
     }
     ctx.beginPath(); ctx.arc(cx,cy,R,0,6.28); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx,cy,R*0.3,0,6.28); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx,cy,5,0,6.28); ctx.fillStyle='#00ffff'; ctx.fill();
+    ctx.beginPath(); ctx.arc(cx,cy,R*0.4,0,6.28); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx,cy,6,0,6.28); ctx.fillStyle='rgba(0,255,255,0.9)'; ctx.fill();
   }
   return new THREE.CanvasTexture(tc);
 }
 
-// 3个符文，随机分布在星球表面
-const RUNE_POSITIONS=[
-  new THREE.Vector3(0.13,0.08,-0.16),
-  new THREE.Vector3(-0.12,-0.06,-0.15),
-  new THREE.Vector3(0.05,0.14,-0.17),
-];
-const runeObjs=[];
-for(let i=0;i<3;i++){
-  const mat=new THREE.MeshBasicMaterial({map:makeRuneTex(i),side:THREE.DoubleSide,transparent:true,opacity:0,depthWrite:false});
-  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(0.1,0.1),mat);
-  mesh.position.copy(RUNE_POSITIONS[i]);
-  mesh.lookAt(new THREE.Vector3(0,0,0));
-  planet.add(mesh);
-  runeObjs.push({mesh,found:false,idx:i});
-}
-
-// ── 轨道粒子 ──
-const mkPts=(n,r0,r1,sz,col,op=0.8)=>{
-  const geo=new THREE.BufferGeometry(), pos=new Float32Array(n*3);
-  for(let i=0;i<n;i++){
-    const r=r0+Math.random()*(r1-r0), phi=Math.acos(2*Math.random()-1), th=Math.random()*6.28;
-    pos[i*3]=r*Math.sin(phi)*Math.cos(th); pos[i*3+1]=r*Math.sin(phi)*Math.sin(th); pos[i*3+2]=r*Math.cos(phi);
-  }
-  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
-  return new THREE.Points(geo,new THREE.PointsMaterial({size:sz,color:col,transparent:true,opacity:op}));
-};
-const orbit=mkPts(250,0.28,0.44,0.004,0x88aaff); planet.add(orbit);
-const orbit2=mkPts(100,0.32,0.5,0.003,new THREE.Color(THEME.glow).getHex(),0.35); planet.add(orbit2);
-
-// ── 爆发粒子（Three.js层）──
+// ══════════════════════════════════════
+// 粒子系统
+// ══════════════════════════════════════
 const BN=600, bGeo=new THREE.BufferGeometry(), bPos=new Float32Array(BN*3), bVel=new Float32Array(BN*3);
 bGeo.setAttribute('position',new THREE.BufferAttribute(bPos,3));
 const bMat=new THREE.PointsMaterial({size:0.007,color:0xFFD700,transparent:true,opacity:0});
@@ -351,331 +502,413 @@ const triggerBurst=(n=600,col=0xFFD700)=>{
   a.needsUpdate=true;
 };
 
-// 喷射粒子
-const jGeo=new THREE.BufferGeometry(), jPos=new Float32Array(400*3), jVel=new Float32Array(400*3);
-jGeo.setAttribute('position',new THREE.BufferAttribute(jPos,3));
+const jGeo=new THREE.BufferGeometry(), jPos2=new Float32Array(400*3), jVel2=new Float32Array(400*3);
+jGeo.setAttribute('position',new THREE.BufferAttribute(jPos2,3));
 let jPtr=0, isJetting=false;
 const jet=new THREE.Points(jGeo,new THREE.PointsMaterial({size:0.003,color:0xFFD700,transparent:true,opacity:0.8}));
 scene.add(jet);
 
-// ── 2D FX Canvas（陨石/能量球/拖尾）──
+// ══════════════════════════════════════
+// 2D FX Canvas
+// ══════════════════════════════════════
 const fx=$('fxCanvas'); fx.width=window.innerWidth; fx.height=window.innerHeight;
 const fc=fx.getContext('2d');
+const trails=[], meteors=[], energyBalls=[];
+let collectEnergy=0, collectActive=false, collectSpawnTimer=0;
 
-// 拖尾系统
-const trails=[];
-function addTrail(x,y,col){
-  trails.push({pts:[{x,y}],col,life:1,maxLife:30});
-}
-
-// 陨石
-const meteors=[];
 function spawnMeteor(){
-  const x=Math.random()*window.innerWidth;
-  meteors.push({
-    x, y:-20,
-    vx:(Math.random()-0.5)*3,
-    vy:4+Math.random()*4,
-    r:8+Math.random()*10,
-    col:`hsl(${30+Math.random()*30},100%,60%)`,
-    trail:[],
-    collected:false,
-    life:1
-  });
+  meteors.push({x:Math.random()*window.innerWidth,y:-20,vx:(Math.random()-0.5)*3,vy:4+Math.random()*4,r:8+Math.random()*10,col:`hsl(${30+Math.random()*30},100%,60%)`,trail:[],collected:false,life:1});
 }
-
-// 能量球
-const energyBalls=[];
 function spawnEnergyBall(){
-  const angle=Math.random()*Math.PI*2;
-  const dist=120+Math.random()*100;
+  const angle=Math.random()*Math.PI*2, dist=100+Math.random()*120;
   const cx=window.innerWidth/2, cy=window.innerHeight*0.42;
-  energyBalls.push({
-    x:cx+Math.cos(angle)*dist,
-    y:cy+Math.sin(angle)*dist,
-    vx:(Math.random()-0.5)*1.5,
-    vy:(Math.random()-0.5)*1.5,
-    r:12+Math.random()*8,
-    phase:Math.random()*6.28,
-    col:`hsl(${180+Math.random()*60},100%,60%)`,
-    trail:[],
-    collected:false,
-    life:1
-  });
+  energyBalls.push({x:cx+Math.cos(angle)*dist,y:cy+Math.sin(angle)*dist,vx:(Math.random()-0.5)*1.5,vy:(Math.random()-0.5)*1.5,r:12+Math.random()*8,phase:Math.random()*6.28,col:`hsl(${180+Math.random()*60},100%,60%)`,trail:[],collected:false,life:1});
 }
-
-let collectEnergy=0; // 0~1
-let collectSpawnTimer=0;
-let collectActive=false;
+function spawnClickSpark(x,y,col){
+  for(let i=0;i<8;i++){
+    const a=Math.random()*6.28, spd=3+Math.random()*5;
+    trails.push({pts:[{x,y},{x:x+Math.cos(a)*spd*3,y:y+Math.sin(a)*spd*3}],col,life:1});
+  }
+}
+function checkCollect(x,y){
+  if(!collectActive) return false;
+  let hit=false;
+  for(const m of meteors){
+    if(m.collected) continue;
+    if(Math.hypot(m.x-x,m.y-y)<m.r*2.5){ m.collected=true; hit=true; collectEnergy=Math.min(1,collectEnergy+0.08); spawnClickSpark(x,y,'rgba(255,120,0,0.9)'); playClickSound(400); }
+  }
+  for(const b of energyBalls){
+    if(b.collected) continue;
+    if(Math.hypot(b.x-x,b.y-y)<b.r*2.5){ b.collected=true; hit=true; collectEnergy=Math.min(1,collectEnergy+0.12); spawnClickSpark(x,y,'rgba(0,220,255,0.9)'); playClickSound(600); }
+  }
+  if(hit){ $('collectFill').style.width=(collectEnergy*100)+'%'; if(collectEnergy>=1) triggerAwaken(); }
+  return hit;
+}
 
 function updateFX(dt){
   fc.clearRect(0,0,fx.width,fx.height);
-
-  // 更新拖尾
   for(let i=trails.length-1;i>=0;i--){
-    const t=trails[i]; t.life-=0.05;
-    if(t.life<=0){trails.splice(i,1);continue;}
-    fc.beginPath();
-    fc.strokeStyle=t.col; fc.lineWidth=3*t.life; fc.globalAlpha=t.life*0.6;
+    const t=trails[i]; t.life-=0.06; if(t.life<=0){trails.splice(i,1);continue;}
+    fc.beginPath(); fc.strokeStyle=t.col; fc.lineWidth=3*t.life; fc.globalAlpha=t.life*0.7;
     fc.shadowColor=t.col; fc.shadowBlur=6;
-    for(let j=0;j<t.pts.length;j++){
-      j===0?fc.moveTo(t.pts[j].x,t.pts[j].y):fc.lineTo(t.pts[j].x,t.pts[j].y);
-    }
-    fc.stroke(); fc.globalAlpha=1; fc.shadowBlur=0;
-  }
-
-  if(!collectActive) return;
-
-  // 生成陨石和能量球
-  collectSpawnTimer+=dt;
-  if(collectSpawnTimer>0.6){ collectSpawnTimer=0; spawnMeteor(); }
-  if(Math.random()<0.03) spawnEnergyBall();
-
-  // 陨石
-  for(let i=meteors.length-1;i>=0;i--){
-    const m=meteors[i];
-    m.x+=m.vx; m.y+=m.vy;
-    m.trail.push({x:m.x,y:m.y});
-    if(m.trail.length>15) m.trail.shift();
-    // 超出屏幕
-    if(m.y>fx.height+30){meteors.splice(i,1);continue;}
-    if(m.collected){m.life-=0.08;if(m.life<=0){meteors.splice(i,1);}continue;}
-    // 绘制拖尾
-    for(let j=1;j<m.trail.length;j++){
-      const alpha=(j/m.trail.length)*0.6;
-      fc.beginPath(); fc.strokeStyle=m.col; fc.lineWidth=(j/m.trail.length)*m.r*0.5;
-      fc.globalAlpha=alpha; fc.shadowColor=m.col; fc.shadowBlur=4;
-      fc.moveTo(m.trail[j-1].x,m.trail[j-1].y); fc.lineTo(m.trail[j].x,m.trail[j].y);
-      fc.stroke();
-    }
+    fc.moveTo(t.pts[0].x,t.pts[0].y); fc.lineTo(t.pts[1].x,t.pts[1].y); fc.stroke();
     fc.globalAlpha=1; fc.shadowBlur=0;
-    // 绘制陨石本体
+  }
+  if(!collectActive) return;
+  collectSpawnTimer+=dt;
+  if(collectSpawnTimer>0.55){collectSpawnTimer=0;spawnMeteor();}
+  if(Math.random()<0.03) spawnEnergyBall();
+  for(let i=meteors.length-1;i>=0;i--){
+    const m=meteors[i]; m.x+=m.vx; m.y+=m.vy;
+    m.trail.push({x:m.x,y:m.y}); if(m.trail.length>15) m.trail.shift();
+    if(m.y>fx.height+30||m.collected&&(m.life-=0.08)<=0){meteors.splice(i,1);continue;}
+    if(m.collected) continue;
+    for(let j=1;j<m.trail.length;j++){
+      fc.beginPath(); fc.strokeStyle=m.col; fc.lineWidth=(j/m.trail.length)*m.r*0.5;
+      fc.globalAlpha=(j/m.trail.length)*0.5; fc.moveTo(m.trail[j-1].x,m.trail[j-1].y); fc.lineTo(m.trail[j].x,m.trail[j].y); fc.stroke();
+    }
+    fc.globalAlpha=1;
     const mg=fc.createRadialGradient(m.x,m.y,0,m.x,m.y,m.r);
     mg.addColorStop(0,'#fff'); mg.addColorStop(0.3,m.col); mg.addColorStop(1,'transparent');
     fc.fillStyle=mg; fc.beginPath(); fc.arc(m.x,m.y,m.r,0,6.28); fc.fill();
   }
-
-  // 能量球
   for(let i=energyBalls.length-1;i>=0;i--){
-    const b=energyBalls[i];
-    b.phase+=0.05; b.x+=b.vx+Math.sin(b.phase)*0.5; b.y+=b.vy+Math.cos(b.phase)*0.5;
-    b.trail.push({x:b.x,y:b.y});
-    if(b.trail.length>20) b.trail.shift();
-    if(b.x<-50||b.x>fx.width+50||b.y<-50||b.y>fx.height+50){energyBalls.splice(i,1);continue;}
-    if(b.collected){b.life-=0.06;if(b.life<=0){energyBalls.splice(i,1);}continue;}
-    // 拖尾
+    const b=energyBalls[i]; b.phase+=0.05; b.x+=b.vx+Math.sin(b.phase)*0.5; b.y+=b.vy+Math.cos(b.phase)*0.5;
+    b.trail.push({x:b.x,y:b.y}); if(b.trail.length>20) b.trail.shift();
+    if(b.x<-60||b.x>fx.width+60||b.y<-60||b.y>fx.height+60||b.collected&&(b.life-=0.06)<=0){energyBalls.splice(i,1);continue;}
+    if(b.collected) continue;
     for(let j=1;j<b.trail.length;j++){
-      fc.beginPath(); fc.strokeStyle=b.col;
-      fc.lineWidth=(j/b.trail.length)*3; fc.globalAlpha=(j/b.trail.length)*0.5;
-      fc.shadowColor=b.col; fc.shadowBlur=6;
-      fc.moveTo(b.trail[j-1].x,b.trail[j-1].y); fc.lineTo(b.trail[j].x,b.trail[j].y);
-      fc.stroke();
+      fc.beginPath(); fc.strokeStyle=b.col; fc.lineWidth=(j/b.trail.length)*3;
+      fc.globalAlpha=(j/b.trail.length)*0.45; fc.moveTo(b.trail[j-1].x,b.trail[j-1].y); fc.lineTo(b.trail[j].x,b.trail[j].y); fc.stroke();
     }
-    fc.globalAlpha=1; fc.shadowBlur=0;
-    // 能量球本体（脉冲光圈）
+    fc.globalAlpha=1;
     const pulse=0.8+0.2*Math.sin(b.phase*3);
     const bg=fc.createRadialGradient(b.x,b.y,0,b.x,b.y,b.r*pulse);
     bg.addColorStop(0,'rgba(255,255,255,0.9)'); bg.addColorStop(0.4,b.col); bg.addColorStop(1,'transparent');
     fc.fillStyle=bg; fc.beginPath(); fc.arc(b.x,b.y,b.r*pulse,0,6.28); fc.fill();
-    // 外光圈
-    fc.beginPath(); fc.arc(b.x,b.y,b.r*pulse*1.5,0,6.28);
-    fc.strokeStyle=b.col; fc.lineWidth=1; fc.globalAlpha=0.3;
-    fc.shadowColor=b.col; fc.shadowBlur=10; fc.stroke();
+    fc.beginPath(); fc.arc(b.x,b.y,b.r*pulse*1.6,0,6.28);
+    fc.strokeStyle=b.col; fc.lineWidth=1; fc.globalAlpha=0.25; fc.shadowColor=b.col; fc.shadowBlur=8; fc.stroke();
     fc.globalAlpha=1; fc.shadowBlur=0;
   }
 }
 
-// ── 点击收集检测 ──
-function checkCollect(x,y){
-  if(!collectActive) return;
-  let hit=false;
-  for(const m of meteors){
-    if(m.collected) continue;
-    const dx=m.x-x, dy=m.y-y;
-    if(Math.sqrt(dx*dx+dy*dy)<m.r*2.5){
-      m.collected=true; hit=true;
-      collectEnergy=Math.min(1,collectEnergy+0.08);
-      addTrail(x,y,'rgba(255,120,0,0.8)');
-      spawnClickSpark(x,y,'#ff8800');
+// ══════════════════════════════════════
+// 运动检测系统
+// ══════════════════════════════════════
+const mc=$('motionCanvas'); const mcc=mc.getContext('2d');
+let prevFrame=null, motionBoxes=[], motionActive=false;
+const MOTION_W=160, MOTION_H=120;
+
+function detectMotion(){
+  if(!motionActive) return;
+  const vid=$('video');
+  if(vid.readyState<2) return;
+  mcc.drawImage(vid,0,0,MOTION_W,MOTION_H);
+  const curr=mcc.getImageData(0,0,MOTION_W,MOTION_H);
+  if(!prevFrame){prevFrame=curr;return;}
+  // 找运动区域
+  const regions=[];
+  const BLOCK=20;
+  for(let by=0;by<MOTION_H;by+=BLOCK){
+    for(let bx=0;bx<MOTION_W;bx+=BLOCK){
+      let diff=0, count=0;
+      for(let y=by;y<Math.min(by+BLOCK,MOTION_H);y++){
+        for(let x=bx;x<Math.min(bx+BLOCK,MOTION_W);x++){
+          const idx=(y*MOTION_W+x)*4;
+          diff+=Math.abs(curr.data[idx]-prevFrame.data[idx])+Math.abs(curr.data[idx+1]-prevFrame.data[idx+1])+Math.abs(curr.data[idx+2]-prevFrame.data[idx+2]);
+          count++;
+        }
+      }
+      if(diff/count>25){
+        // 映射到屏幕坐标
+        regions.push({
+          x:(bx/MOTION_W)*window.innerWidth,
+          y:(by/MOTION_H)*window.innerHeight,
+          w:(BLOCK/MOTION_W)*window.innerWidth,
+          h:(BLOCK/MOTION_H)*window.innerHeight
+        });
+      }
     }
   }
-  for(const b of energyBalls){
-    if(b.collected) continue;
-    const dx=b.x-x, dy=b.y-y;
-    if(Math.sqrt(dx*dx+dy*dy)<b.r*2.5){
-      b.collected=true; hit=true;
-      collectEnergy=Math.min(1,collectEnergy+0.12);
-      addTrail(x,y,'rgba(0,220,255,0.8)');
-      spawnClickSpark(x,y,'#00ffff');
+  prevFrame=curr;
+  // 合并相邻区域
+  updateMotionBoxes(regions);
+}
+
+function updateMotionBoxes(regions){
+  // 清除旧框
+  document.querySelectorAll('.motionBox').forEach(el=>el.remove());
+  motionBoxes=[];
+  if(regions.length===0) return;
+  // 合并为若干大框（最多3个）
+  const merged=[];
+  regions.forEach(r=>{
+    let added=false;
+    for(const m of merged){
+      if(Math.abs(r.x-m.x)<100&&Math.abs(r.y-m.y)<100){
+        m.x=Math.min(m.x,r.x); m.y=Math.min(m.y,r.y);
+        m.w=Math.max(m.w,r.x+r.w-m.x); m.h=Math.max(m.h,r.y+r.h-m.y);
+        added=true; break;
+      }
     }
-  }
-  if(hit){
-    $('collectFill').style.width=(collectEnergy*100)+'%';
-    if(collectEnergy>=1) triggerAwaken();
-  }
-  return hit;
+    if(!added) merged.push({...r});
+  });
+  merged.slice(0,3).forEach(m=>{
+    const el=document.createElement('div');
+    el.className='motionBox';
+    el.style.cssText=`left:${m.x-10}px;top:${m.y-10}px;width:${m.w+20}px;height:${m.h+20}px;`;
+    el.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(collectActive){ collectEnergy=Math.min(1,collectEnergy+0.15); $('collectFill').style.width=(collectEnergy*100)+'%'; spawnClickSpark(m.x+m.w/2,m.y+m.h/2,'rgba(0,100,255,0.9)'); playClickSound(500); if(collectEnergy>=1) triggerAwaken(); }
+      el.style.opacity='0'; setTimeout(()=>el.remove(),300);
+    });
+    el.addEventListener('touchend',e=>{
+      e.stopPropagation(); e.preventDefault();
+      if(collectActive){ collectEnergy=Math.min(1,collectEnergy+0.15); $('collectFill').style.width=(collectEnergy*100)+'%'; spawnClickSpark(m.x+m.w/2,m.y+m.h/2,'rgba(0,100,255,0.9)'); playClickSound(500); if(collectEnergy>=1) triggerAwaken(); }
+      el.style.opacity='0'; setTimeout(()=>el.remove(),300);
+    });
+    document.body.appendChild(el);
+    motionBoxes.push(el);
+  });
+}
+setInterval(detectMotion, 200);
+
+// ══════════════════════════════════════
+// 时空穿越特效
+// ══════════════════════════════════════
+function playWarpEffect(callback){
+  const ws=$('warpScreen'), wc=$('warpCanvas');
+  ws.style.display='block';
+  wc.width=window.innerWidth; wc.height=window.innerHeight;
+  const ctx=wc.getContext('2d');
+  const W=wc.width, H=wc.height;
+  const cx=W/2, cy=H/2;
+  let t=0;
+  const lines=Array.from({length:80},()=>({
+    angle:Math.random()*Math.PI*2,
+    len:0, speed:8+Math.random()*20,
+    col:`hsl(${180+Math.random()*120},100%,${60+Math.random()*40}%)`
+  }));
+  const anim=()=>{
+    t++; ctx.fillStyle='rgba(0,0,10,0.15)'; ctx.fillRect(0,0,W,H);
+    lines.forEach(l=>{
+      l.len+=l.speed; const dist=50+t*3;
+      const x1=cx+Math.cos(l.angle)*dist, y1=cy+Math.sin(l.angle)*dist;
+      const x2=cx+Math.cos(l.angle)*(dist+l.len), y2=cy+Math.sin(l.angle)*(dist+l.len);
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+      ctx.strokeStyle=l.col; ctx.lineWidth=1.5; ctx.globalAlpha=Math.min(1,t/20);
+      ctx.stroke(); ctx.globalAlpha=1;
+    });
+    // 中心白光
+    if(t>40){
+      const prog=Math.min(1,(t-40)/20);
+      ctx.fillStyle=`rgba(255,255,255,${prog*0.9})`; ctx.fillRect(0,0,W,H);
+    }
+    if(t<65) requestAnimationFrame(anim);
+    else { ws.style.display='none'; ctx.clearRect(0,0,W,H); if(callback) callback(); }
+  };
+  anim();
 }
 
-function spawnClickSpark(x,y,col){
-  for(let i=0;i<8;i++){
-    const a=Math.random()*6.28, spd=3+Math.random()*5;
-    const sx=x+Math.cos(a)*spd*2, sy=y+Math.sin(a)*spd*2;
-    trails.push({pts:[{x,y},{x:sx,y:sy}],col,life:1,maxLife:20});
+// ══════════════════════════════════════
+// 星球槽 UI 更新
+// ══════════════════════════════════════
+function updatePlanetSlots(){
+  const ps=$('planetSlots'); ps.innerHTML='';
+  if(completedPlanets.length===0){ps.style.display='none';return;}
+  ps.style.display='flex';
+  // 已完成的小图标
+  completedPlanets.forEach((tc,i)=>{
+    const slot=document.createElement('div'); slot.className='pslot';
+    const c=document.createElement('canvas'); c.width=c.height=36;
+    const ctx=c.getContext('2d'); ctx.drawImage(tc,0,0,36,36);
+    slot.appendChild(c); ps.appendChild(slot);
+  });
+  // 空槽
+  for(let i=completedPlanets.length;i<6;i++){
+    const slot=document.createElement('div'); slot.className='pslot';
+    slot.textContent=`${i+1}`; ps.appendChild(slot);
   }
 }
 
-// ── 状态 ──
-let stage=0;         // 0=探索 1=旋转找符文 2=收集能量 3=觉醒
-let runesFound=0;
-let isDragging=false, lastX=0, rotSpeed=0.008;
-let pinchDist=0, planetScale=1;
-let audioCtx=null, bgGain=null;
-let lastTime=performance.now();
-
+// ══════════════════════════════════════
+// 游戏状态机
+// ══════════════════════════════════════
+let stage=0, runesFound=0;
 const setHint=t=>{ $('hint').textContent=t; };
 const updateRuneUI=()=>{
   for(let i=0;i<3;i++) $('rd'+i).className='rune-dot'+(i<runesFound?' lit':'');
-  // 显示能量条在收集阶段
-  if(stage===2){ $('collectBar').style.display='block'; } else { $('collectBar').style.display='none'; }
+  $('collectBar').style.display=stage===2?'block':'none';
 };
 
-// ── 符文显隐（旋转时逐渐显示）──
+// 符文可见性
 function updateRuneVisibility(){
   runeObjs.forEach(r=>{
     if(r.found) return;
-    // 将符文世界坐标转到视图坐标，判断是否朝向相机
     const wp=r.mesh.getWorldPosition(new THREE.Vector3());
     const toCamera=new THREE.Vector3().subVectors(cam.position,wp).normalize();
     const normal=wp.clone().sub(planet.position).normalize();
     const dot=toCamera.dot(normal);
-    // dot>0.3 时开始显示
     r.mesh.material.opacity=Math.max(0,Math.min(1,(dot-0.2)*3));
   });
 }
 
-// ── 触摸检测符文 ──
+// 符文点击
 const ray2=new THREE.Raycaster(), ndcV2=new THREE.Vector2();
 function checkRuneClick(cx,cy){
-  ndcV2.x=(cx/window.innerWidth)*2-1;
-  ndcV2.y=-(cy/window.innerHeight)*2+1;
+  ndcV2.x=(cx/window.innerWidth)*2-1; ndcV2.y=-(cy/window.innerHeight)*2+1;
   ray2.setFromCamera(ndcV2,cam);
   for(const r of runeObjs){
-    if(r.found) continue;
-    if(r.mesh.material.opacity<0.3) continue;
-    const hits=ray2.intersectObject(r.mesh);
-    if(hits.length>0){
+    if(r.found||r.mesh.material.opacity<0.3) continue;
+    if(ray2.intersectObject(r.mesh).length>0){
       r.found=true; runesFound++;
-      r.mesh.material.color=new THREE.Color(0xFFD700);
-      r.mesh.material.opacity=1;
-      triggerBurst(80,0x00ffff);
-      playClickSound(300+runesFound*150);
-      updateRuneUI();
-      if(runesFound>=3){
-        stage=2; collectActive=true;
-        setHint('点击收集陨石与能量球！');
-        updateRuneUI();
-        $('runeCounter').style.display='block';
-      } else {
-        setHint(`发现符文 ${runesFound}/3，继续旋转探索`);
-      }
+      r.mesh.material.color=new THREE.Color(0xFFD700); r.mesh.material.opacity=1;
+      triggerBurst(80,0x00ffff); playClickSound(300+runesFound*150); updateRuneUI();
+      if(runesFound>=3){ stage=2; collectActive=true; setHint('点击收集陨石与能量球！'); updateRuneUI(); }
+      else setHint(`发现符文 ${runesFound}/3，继续旋转探索`);
       return true;
     }
   }
   return false;
 }
 
-// ── 觉醒 ──
+// 觉醒
 function triggerAwaken(){
   if(stage===3) return;
-  stage=3; collectActive=false;
-  $('collectBar').style.display='none';
-  $('hint').style.display='none';
+  stage=3; collectActive=false; motionActive=false;
+  document.querySelectorAll('.motionBox').forEach(el=>el.remove());
+  $('collectBar').style.display='none'; $('hint').style.display='none';
   playAwakenSound(); triggerBurst(600);
-  setTimeout(()=>{
-    let sc=1;
-    const gr=()=>{ sc+=0.04; crackMat.opacity-=0.025; if(sc<1.6) requestAnimationFrame(gr); };
-    gr(); glowMat.opacity=0.55; glowMat.color.set(0xff8800);
-  },300);
-  setTimeout(()=>{
-    rotSpeed=0.055;
-    const tgt=new THREE.Color(0xFFAA00), emT=new THREE.Color(0xff6600);
-    const lp=()=>{ coreMat.color.lerp(tgt,0.05); coreMat.emissive.lerp(emT,0.05); coreMat.emissiveIntensity=Math.min(coreMat.emissiveIntensity+0.02,1.2); if(coreMat.color.r<0.99) requestAnimationFrame(lp); };
-    lp();
-  },600);
+  setTimeout(()=>{ let sc=1; const gr=()=>{ sc+=0.04; crackMat.opacity-=0.025; if(sc<1.6) requestAnimationFrame(gr); }; gr(); glowMat.opacity=0.55; glowMat.color.set(0xff8800); },300);
+  setTimeout(()=>{ rotSpeed=0.055; const tgt=new THREE.Color(isSuperPlanet?0xffaaff:0xFFAA00); const lp=()=>{ coreMat.color.lerp(tgt,0.05); if(coreMat.color.r<0.99) requestAnimationFrame(lp); }; lp(); },600);
   setTimeout(()=>{ $('flash').style.opacity='1'; setTimeout(()=>$('flash').style.opacity='0',180); },1000);
-  setTimeout(()=>{ glowMat.color.set(0xFFD700); glowMat.opacity=0.3; isJetting=true; },1500);
+  setTimeout(()=>{ glowMat.color.set(isSuperPlanet?0xff88ff:0xFFD700); glowMat.opacity=0.3; isJetting=true; },1500);
   setTimeout(()=>{
     $('awakened').style.display='block';
-    const txt="STELLAR CORE AWAKENED"; let i=0;
-    const tp=()=>{ $('awakenTitle').textContent+=txt[i]; i++; if(i<txt.length) setTimeout(tp,75); else { $('awakenSub').style.opacity='1'; setTimeout(()=>$('restartBtn').style.display='block',1500); }};
+    const txt=isSuperPlanet?"STELLAR GENESIS COMPLETE":"STELLAR CORE AWAKENED"; let i=0;
+    const tp=()=>{ $('awakenTitle').textContent+=txt[i]; i++; if(i<txt.length) setTimeout(tp,75); else {
+      $('awakenSub').style.opacity='1';
+      setTimeout(()=>{
+        if(isSuperPlanet){
+          // 全部完成！
+          $('bottomBtn').textContent='✦ 探索终结 ✦';
+          $('bottomBtn').style.borderColor='rgba(255,100,255,0.6)';
+          $('bottomBtn').style.color='#ff88ff';
+        } else {
+          $('bottomBtn').textContent='↺ 继续探索';
+        }
+        $('bottomBtn').style.display='block';
+      },1500);
+    }};
     tp();
   },2500);
 }
 
-// ── 重启 ──
-$('restartBtn').addEventListener('click',()=>{
-  stage=0; runesFound=0; collectEnergy=0; collectActive=false;
-  rotSpeed=0.008; isJetting=false; isDragging=false; burstActive=false;
-  planet.scale.setScalar(1); planetScale=1;
-  coreMat.color.set(THEME.core); coreMat.emissive.set(THEME.core); coreMat.emissiveIntensity=0.2;
-  crackMat.opacity=0.35; glowMat.color.set(THEME.glow); glowMat.opacity=0.1;
-  planet.rotation.set(0,0,0); bMat.opacity=0;
-  runeObjs.forEach(r=>{ r.found=false; r.mesh.material.opacity=0; r.mesh.material.color=new THREE.Color(0x00ffff); });
-  meteors.length=0; energyBalls.length=0; trails.length=0;
-  $('awakened').style.display='none'; $('awakenTitle').textContent=''; $('awakenSub').style.opacity='0';
-  $('restartBtn').style.display='none'; $('hint').style.display='block'; $('collectBar').style.display='none';
-  $('runeCounter').style.display='none'; updateRuneUI();
-  setHint('滑动旋转星球，寻找符文');
-  if(bgGain) bgGain.gain.setValueAtTime(0.06,audioCtx.currentTime);
+// 继续探索按钮
+$('bottomBtn').addEventListener('click',()=>{
+  if(isSuperPlanet){ alert('感谢探索！所有星核已觉醒。'); return; }
+  const theme=shuffledThemes[currentThemeIdx];
+  // 保存缩略图
+  completedPlanets.push(makeThumbnailCanvas(theme));
+  currentThemeIdx++;
+  // 播放时空穿越
+  $('bottomBtn').style.display='none';
+  $('awakened').style.display='none';
+  $('superTitle').style.display='none';
+  playWarpEffect(()=>{
+    if(currentThemeIdx>=6){
+      // 六个全部完成，触发超级星球警告
+      showWarningAndSuperPlanet();
+    } else {
+      startNewPlanet();
+    }
+  });
 });
 
-// ── 音效 ──
+function showWarningAndSuperPlanet(){
+  const ws=$('warningScreen'); ws.style.display='flex';
+  let blink=0;
+  const bi=setInterval(()=>{
+    blink++; ws.style.background=blink%2===0?'rgba(0,0,0,0.85)':'rgba(40,0,0,0.85)';
+    if(blink>8){ clearInterval(bi); ws.style.display='none'; startSuperPlanet(); }
+  },400);
+}
+
+function startSuperPlanet(){
+  isSuperPlanet=true;
+  stage=0; runesFound=0; isJetting=false; burstActive=false; collectEnergy=0;
+  bMat.opacity=0; meteors.length=0; energyBalls.length=0; trails.length=0;
+  buildPlanet(null,true);
+  updatePlanetSlots();
+  $('runeCounter').style.display='none';
+  $('superTitle').style.display='block';
+  const txt='SUPER STELLAR CORE'; let i2=0;
+  const tp=()=>{ $('superTitleText').textContent+=txt[i2]; i2++; if(i2<txt.length) setTimeout(tp,80); };
+  tp();
+  setHint('超级星核出现！收集能量将其觉醒');
+  $('hint').style.display='block';
+  $('collectBar').style.display='block'; collectActive=true; stage=2;
+  updateRuneUI(); motionActive=true;
+  // 超级星球直接进收集阶段，无需找符文
+}
+
+function startNewPlanet(){
+  isSuperPlanet=false;
+  stage=0; runesFound=0; isJetting=false; burstActive=false; collectEnergy=0;
+  bMat.opacity=0; meteors.length=0; energyBalls.length=0; trails.length=0;
+  rotSpeed=0.008; planetScale=1;
+  buildPlanet(shuffledThemes[currentThemeIdx]);
+  updatePlanetSlots();
+  $('runeCounter').style.display='block';
+  $('collectBar').style.display='none'; $('collectFill').style.width='0%';
+  $('awakened').style.display='none'; $('awakenTitle').textContent=''; $('awakenSub').style.opacity='0';
+  $('superTitle').style.display='none'; $('hint').style.display='block';
+  setHint('滑动旋转星球，寻找符文'); updateRuneUI();
+  // 激活星空滤镜（从第二颗星球开始）
+  starFilterOn=true;
+  motionActive=true;
+}
+
+// ══════════════════════════════════════
+// 音效
+// ══════════════════════════════════════
+let audioCtx=null, bgGain=null;
 function initAudio(){
   if(!audioCtx){ audioCtx=new(window.AudioContext||window.webkitAudioContext)(); startBGM(); }
 }
 function playClickSound(freq){
   if(!audioCtx) return;
   const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-  o.frequency.value=freq; g.gain.setValueAtTime(0.15,audioCtx.currentTime); g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+0.25);
-  o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.25);
+  o.frequency.value=freq; g.gain.setValueAtTime(0.12,audioCtx.currentTime); g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+0.2);
+  o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.2);
 }
 function startBGM(){
   bgGain=audioCtx.createGain(); bgGain.gain.value=0.05; bgGain.connect(audioCtx.destination);
-  const pd=()=>{ const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type='sine'; o.frequency.value=[55,82,110,146][Math.floor(Math.random()*4)]; g.gain.setValueAtTime(0,audioCtx.currentTime); g.gain.linearRampToValueAtTime(1,audioCtx.currentTime+2); g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+8); o.connect(g); g.connect(bgGain); o.start(); o.stop(audioCtx.currentTime+8); setTimeout(pd,6000+Math.random()*4000); };
-  pd();
-  const ps=()=>{ const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type='sine'; o.frequency.value=600+Math.random()*1400; g.gain.setValueAtTime(0,audioCtx.currentTime); g.gain.linearRampToValueAtTime(0.25,audioCtx.currentTime+0.08); g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+0.5); o.connect(g); g.connect(bgGain); o.start(); o.stop(audioCtx.currentTime+0.5); setTimeout(ps,1000+Math.random()*3000); };
-  setTimeout(ps,2000);
+  const pd=()=>{ const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type='sine'; o.frequency.value=[55,82,110,146][Math.floor(Math.random()*4)]; g.gain.setValueAtTime(0,audioCtx.currentTime); g.gain.linearRampToValueAtTime(1,audioCtx.currentTime+2); g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+8); o.connect(g); g.connect(bgGain); o.start(); o.stop(audioCtx.currentTime+8); setTimeout(pd,6000+Math.random()*4000); }; pd();
+  const ps=()=>{ const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type='sine'; o.frequency.value=600+Math.random()*1400; g.gain.setValueAtTime(0,audioCtx.currentTime); g.gain.linearRampToValueAtTime(0.2,audioCtx.currentTime+0.08); g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+0.5); o.connect(g); g.connect(bgGain); o.start(); o.stop(audioCtx.currentTime+0.5); setTimeout(ps,1000+Math.random()*3000); }; setTimeout(ps,2000);
 }
 function playAwakenSound(){
   if(!audioCtx) return;
   if(bgGain) bgGain.gain.linearRampToValueAtTime(0.15,audioCtx.currentTime+0.5);
   [[120,960],[150,1200],[180,1440],[240,1920]].forEach(([f0,f1],i)=>{
     const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-    o.frequency.setValueAtTime(f0,audioCtx.currentTime+i*0.05);
-    o.frequency.linearRampToValueAtTime(f1,audioCtx.currentTime+1.5);
-    g.gain.setValueAtTime(i===0?0.3:0.08,audioCtx.currentTime);
-    g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+2.5);
+    o.frequency.setValueAtTime(f0,audioCtx.currentTime+i*0.05); o.frequency.linearRampToValueAtTime(f1,audioCtx.currentTime+1.5);
+    g.gain.setValueAtTime(i===0?0.28:0.07,audioCtx.currentTime); g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+2.5);
     o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+2.5);
   });
 }
 
-// ── 交互处理 ──
+// ══════════════════════════════════════
+// 交互
+// ══════════════════════════════════════
 const tl=$('touchLayer');
+let isDragging=false, lastX=0, lastY=0, pinchDist=0;
 
-// 手指拖动旋转
-let touchStartX=0, touchStartY=0;
 tl.addEventListener('touchstart',e=>{
   initAudio();
-  if(e.touches.length===2){
-    pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-    return;
-  }
-  const t=e.touches[0];
-  touchStartX=lastX=t.clientX; touchStartY=t.clientY;
-  isDragging=true;
-  // 收集阶段检测点击
+  if(e.touches.length===2){ pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); return; }
+  const t=e.touches[0]; lastX=t.clientX; lastY=t.clientY; isDragging=true;
   if(stage===2) checkCollect(t.clientX,t.clientY);
-  // 符文点击（旋转阶段）
   if(stage===0||stage===1) checkRuneClick(t.clientX,t.clientY);
 },{passive:true});
 
@@ -684,67 +917,63 @@ tl.addEventListener('touchmove',e=>{
     const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
     const ratio=d/pinchDist; pinchDist=d;
     planetScale=Math.max(0.4,Math.min(2.5,planetScale*ratio));
-    planet.scale.setScalar(planetScale);
-    return;
+    planet.scale.setScalar(planetScale); return;
   }
   if(!isDragging) return;
   const t=e.touches[0];
-  const dx=(t.clientX-lastX)*0.013;
-  const dy=(t.clientY-touchStartY)*0.008;
-  planet.rotation.y+=dx; planet.rotation.x+=dy;
-  // 收集阶段拖动也能收集
+  // 降低灵敏度至0.003
+  planet.rotation.y+=(t.clientX-lastX)*0.003;
+  planet.rotation.x+=(t.clientY-lastY)*0.003;
   if(stage===2) checkCollect(t.clientX,t.clientY);
-  lastX=t.clientX;
+  lastX=t.clientX; lastY=t.clientY;
 },{passive:true});
 
 tl.addEventListener('touchend',()=>{ isDragging=false; });
 
-// 鼠标支持（PC调试）
-tl.addEventListener('mousedown',e=>{
-  initAudio(); isDragging=true; lastX=e.clientX; touchStartY=e.clientY;
-  if(stage===2) checkCollect(e.clientX,e.clientY);
-  if(stage===0||stage===1) checkRuneClick(e.clientX,e.clientY);
-});
-tl.addEventListener('mousemove',e=>{
-  if(!isDragging) return;
-  planet.rotation.y+=(e.clientX-lastX)*0.013;
-  planet.rotation.x+=(e.clientY-touchStartY)*0.008;
-  touchStartY=e.clientY; lastX=e.clientX;
-  if(stage===2) checkCollect(e.clientX,e.clientY);
-});
+tl.addEventListener('mousedown',e=>{ initAudio(); isDragging=true; lastX=e.clientX; lastY=e.clientY; if(stage===2) checkCollect(e.clientX,e.clientY); if(stage===0||stage===1) checkRuneClick(e.clientX,e.clientY); });
+tl.addEventListener('mousemove',e=>{ if(!isDragging) return; planet.rotation.y+=(e.clientX-lastX)*0.003; planet.rotation.x+=(e.clientY-lastY)*0.003; lastX=e.clientX; lastY=e.clientY; if(stage===2) checkCollect(e.clientX,e.clientY); });
 tl.addEventListener('mouseup',()=>{ isDragging=false; });
-tl.addEventListener('wheel',e=>{
-  planetScale=Math.max(0.4,Math.min(2.5,planetScale*(e.deltaY>0?0.95:1.05)));
-  planet.scale.setScalar(planetScale);
-});
+tl.addEventListener('wheel',e=>{ planetScale=Math.max(0.4,Math.min(2.5,planetScale*(e.deltaY>0?0.95:1.05))); planet.scale.setScalar(planetScale); });
 
-// ── 渲染循环 ──
+// ══════════════════════════════════════
+// 渲染循环
+// ══════════════════════════════════════
+let lastTime=performance.now();
 renderer.setAnimationLoop(()=>{
   const now=performance.now(), dt=(now-lastTime)/1000; lastTime=now;
 
-  planet.rotation.y+=rotSpeed;
-  orbit.rotation.y+=0.004; orbit.rotation.x+=0.001;
-  orbit2.rotation.y-=0.003; orbit2.rotation.z+=0.002;
-
-  updateRuneVisibility();
+  if(planet){
+    planet.rotation.y+=rotSpeed;
+    if(orbit) orbit.rotation.y+=0.004;
+    if(orbit2){ orbit2.rotation.y-=0.003; orbit2.rotation.z+=0.002; }
+    if(!isSuperPlanet) updateRuneVisibility();
+    // 超级星球彩虹发光
+    if(isSuperPlanet&&glowMat){ glowMat.color.setHSL((Date.now()*0.0003)%1,1,0.5); }
+  }
 
   if(burstActive){
     const el=Date.now()-burstStart, a=bGeo.attributes.position;
     if(el<1800){ bMat.opacity=Math.max(0,1-(el/1800)); for(let i=0;i<BN;i++){ a.array[i*3]+=bVel[i*3]; a.array[i*3+1]+=bVel[i*3+1]; a.array[i*3+2]+=bVel[i*3+2]; } a.needsUpdate=true; }
-    else { burstActive=false; bMat.opacity=0; }
+    else{ burstActive=false; bMat.opacity=0; }
   }
 
   if(isJetting){
     const ja=jGeo.attributes.position;
-    for(let i=0;i<4;i++){ const idx=jPtr*3, sp=0.007+Math.random()*0.014, phi=Math.acos(2*Math.random()-1), th=Math.random()*6.28; ja.array[idx]=(Math.random()-0.5)*0.07; ja.array[idx+1]=0.05+(Math.random()-0.5)*0.07; ja.array[idx+2]=(Math.random()-0.5)*0.07; jVel[idx]=sp*Math.sin(phi)*Math.cos(th); jVel[idx+1]=sp*Math.sin(phi)*Math.sin(th); jVel[idx+2]=sp*Math.cos(phi); jPtr=(jPtr+1)%400; }
-    for(let i=0;i<400;i++){ ja.array[i*3]+=jVel[i*3]; ja.array[i*3+1]+=jVel[i*3+1]; ja.array[i*3+2]+=jVel[i*3+2]; } ja.needsUpdate=true;
+    for(let i=0;i<4;i++){ const idx=jPtr*3, sp=0.007+Math.random()*0.014, phi=Math.acos(2*Math.random()-1), th=Math.random()*6.28; ja.array[idx]=(Math.random()-0.5)*0.07; ja.array[idx+1]=0.05+(Math.random()-0.5)*0.07; ja.array[idx+2]=(Math.random()-0.5)*0.07; jVel2[idx]=sp*Math.sin(phi)*Math.cos(th); jVel2[idx+1]=sp*Math.sin(phi)*Math.sin(th); jVel2[idx+2]=sp*Math.cos(phi); jPtr=(jPtr+1)%400; }
+    for(let i=0;i<400;i++){ ja.array[i*3]+=jVel2[i*3]; ja.array[i*3+1]+=jVel2[i*3+1]; ja.array[i*3+2]+=jVel2[i*3+2]; } ja.needsUpdate=true;
   }
+
+  // 星空滤镜淡入
+  if(starFilterOn&&starAlpha<0.85) starAlpha=Math.min(0.85,starAlpha+0.005);
+  drawStarFilter();
 
   updateFX(dt);
   renderer.render(scene,cam);
 });
 
-// ── 摄像头 ──
+// ══════════════════════════════════════
+// 摄像头启动
+// ══════════════════════════════════════
 async function startCamera(){
   try{
     const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:false});
@@ -758,14 +987,18 @@ async function startCamera(){
 $('startBtnInner').addEventListener('click',async()=>{
   const ok=await startCamera(); if(!ok) return;
   $('startBtn').style.display='none';
+  $('starFilter').style.display='block';
   $('edgeScan').style.display='block';
   $('scanner').style.display='block';
   $('hudL').style.display='block';
   $('hudR').style.display='block';
-  $('runeCounter').style.display='none';
+  $('runeCounter').style.display='block';
   $('hint').style.display='block';
   $('touchLayer').style.display='block';
+  buildPlanet(shuffledThemes[0]);
+  updatePlanetSlots();
   setHint('滑动旋转星球，寻找符文');
+  motionActive=true;
 });
 </script>
 </body>
