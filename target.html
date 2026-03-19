@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>StellarCore - AR Target Pattern</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #fff;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .instruction {
+            margin-bottom: 20px;
+            color: #00ff88;
+            font-size: 14px;
+            text-align: center;
+        }
+        .container {
+            background: #000;
+            padding: 20px;
+            border: 1px solid #333;
+            box-shadow: 0 0 30px rgba(0,255,136,0.1);
+        }
+        .footer {
+            margin-top: 20px;
+            color: #888;
+            font-size: 12px;
+        }
+        .svg-target {
+            display: block;
+            width: 400px;
+            height: 400px;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+    <div class="instruction">
+        打印此图案用于AR体验（建议打印为10cm × 10cm）
+    </div>
+
+    <div class="container">
+        <svg class="svg-target" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+            <!-- 1. 最外层粗边框 -->
+            <rect x="5" y="5" width="390" height="390" fill="none" stroke="white" stroke-width="4"/>
+            
+            <!-- 2. 四角定位块 -->
+            <rect x="5" y="5" width="25" height="25" fill="white"/>
+            <rect x="370" y="5" width="25" height="25" fill="white"/>
+            <rect x="5" y="370" width="25" height="25" fill="white"/>
+            <rect x="370" y="370" width="25" height="25" fill="white"/>
+
+            <!-- 3. 电路线条层 -->
+            <g stroke="white" stroke-width="1.5" fill="none">
+                <!-- 左上角延伸 -->
+                <path d="M 30 15 L 60 15 L 60 45"/>
+                <circle cx="60" cy="45" r="3" fill="white" stroke="none"/>
+                <path d="M 15 30 L 15 60 L 45 60"/>
+                <rect x="42" y="57" width="8" height="8" fill="white" stroke="none"/>
+
+                <!-- 右上角延伸 -->
+                <path d="M 370 15 L 340 15 L 340 45"/>
+                <circle cx="340" cy="45" r="3" fill="white" stroke="none"/>
+                <path d="M 385 30 L 385 60 L 355 60"/>
+                <rect x="350" y="57" width="8" height="8" fill="white" stroke="none"/>
+
+                <!-- 左下角延伸 -->
+                <path d="M 15 370 L 15 340 L 45 340"/>
+                <circle cx="45" cy="340" r="3" fill="white" stroke="none"/>
+                <path d="M 30 385 L 60 385 L 60 355"/>
+                <rect x="57" y="350" width="8" height="8" fill="white" stroke="none"/>
+
+                <!-- 右下角延伸 -->
+                <path d="M 385 370 L 385 340 L 355 340"/>
+                <circle cx="355" cy="340" r="3" fill="white" stroke="none"/>
+                <path d="M 370 385 L 340 385 L 340 355"/>
+                <rect x="335" y="350" width="8" height="8" fill="white" stroke="none"/>
+            </g>
+
+            <!-- 4. 中间装饰环 -->
+            <circle cx="200" cy="200" r="80" fill="none" stroke="white" stroke-width="2" stroke-dasharray="4,4"/>
+            <circle cx="200" cy="200" r="100" fill="none" stroke="#444" stroke-width="1"/>
+
+            <!-- 5. 中心图案 -->
+            <g transform="translate(200, 200)">
+                <!-- 正六边形 -->
+                <!-- Vertices: (40, 0), (20, 34.6), (-20, 34.6), (-40, 0), (-20, -34.6), (20, -34.6) -->
+                <polygon points="40,0 20,34.6 -20,34.6 -40,0 -20,-34.6 20,-34.6" fill="none" stroke="white" stroke-width="2.5"/>
+                
+                <!-- 辐射线 -->
+                <line x1="0" y1="0" x2="40" y2="0" stroke="white" stroke-width="1.5"/>
+                <line x1="0" y1="0" x2="20" y2="34.6" stroke="white" stroke-width="1.5"/>
+                <line x1="0" y1="0" x2="-20" y2="34.6" stroke="white" stroke-width="1.5"/>
+                <line x1="0" y1="0" x2="-40" y2="0" stroke="white" stroke-width="1.5"/>
+                <line x1="0" y1="0" x2="-20" y2="-34.6" stroke="white" stroke-width="1.5"/>
+                <line x1="0" y1="0" x2="20" y2="-34.6" stroke="white" stroke-width="1.5"/>
+
+                <!-- 中央实心圆点 -->
+                <circle cx="0" cy="0" r="8" fill="white"/>
+            </g>
+
+            <!-- 6. 文字说明 -->
+            <text x="200" y="320" font-size="12" fill="white" text-anchor="middle" letter-spacing="2">STELLAR CORE - AR TARGET</text>
+        </svg>
+    </div>
+
+    <div class="footer">
+        特征点越丰富，识别越准确
+    </div>
+</body>
+</html>
