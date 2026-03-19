@@ -63,8 +63,8 @@
     #energyFill{width:0%;height:100%;background:linear-gradient(90deg,#ff3300,#FFD700);transition:width 0.5s;border-radius:3px;}
     #energyVal{color:#FFD700;font-size:10px;margin-top:4px;text-align:right;}
 
-    /* 六星球收集槽 */
-    #planetSlots{position:absolute;top:16px;left:16px;display:none;flex-direction:row;gap:8px;align-items:center;}
+    /* 六星球收集槽 - 左下角 */
+    #planetSlots{position:absolute;bottom:16px;left:16px;display:none;flex-direction:row;gap:8px;align-items:center;}
     .pslot{width:36px;height:36px;border-radius:50%;border:2px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.4);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:8px;color:rgba(255,255,255,0.3);}
     .pslot canvas{width:100%;height:100%;border-radius:50%;}
 
@@ -77,7 +77,7 @@
     #hint{position:absolute;bottom:50px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.12);color:#fff;font-size:14px;padding:10px 22px;border-radius:6px;white-space:nowrap;display:none;letter-spacing:1px;}
 
     /* 能量收集进度 */
-    #collectBar{position:absolute;bottom:100px;left:50%;transform:translateX(-50%);width:200px;display:none;}
+    #collectBar{position:absolute;bottom:100px;left:50%;transform:translateX(-50%);width:280px;display:none;}
     #collectLabel{color:#FFD700;font-size:11px;text-align:center;margin-bottom:6px;letter-spacing:1px;}
     #collectBg{height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;border:1px solid rgba(255,215,0,0.2);}
     #collectFill{width:0%;height:100%;background:linear-gradient(90deg,#ff6600,#FFD700,#fff);border-radius:4px;transition:width 0.2s;}
@@ -416,18 +416,37 @@ function buildPlanet(theme, isSuper=false){
     planet.add(new THREE.Mesh(new THREE.SphereGeometry(0.27,32,32),atmosMat));
     ptL2.color.set(new THREE.Color(theme.glow));
 
-    // 符文
+    // 符文 - 随机位置和大小
     runeObjs=[];
-    const RUNE_POS=[
-      new THREE.Vector3(0.13,0.08,-0.16),
-      new THREE.Vector3(-0.12,-0.06,-0.15),
-      new THREE.Vector3(0.05,0.14,-0.17),
-    ];
+    // 随机生成3个分布在星球背面不同位置的符文
+    const usedAngles=[];
     for(let i=0;i<3;i++){
-      const mat=new THREE.MeshBasicMaterial({map:makeRuneTex(i),side:THREE.DoubleSide,transparent:true,opacity:0,depthWrite:false});
-      const mesh=new THREE.Mesh(new THREE.PlaneGeometry(0.1,0.1),mat);
-      mesh.position.copy(RUNE_POS[i]); mesh.lookAt(new THREE.Vector3(0,0,0));
-      planet.add(mesh); runeObjs.push({mesh,found:false,idx:i});
+      // 随机球面坐标（偏向背面：phi在0.4π~0.8π之间，theta分散）
+      let phi, theta, tries=0;
+      do{
+        phi=Math.PI*(0.35+Math.random()*0.45);
+        theta=Math.PI*(0.5+Math.random()*1.0); // 偏向背面
+        tries++;
+      }while(tries<20&&usedAngles.some(a=>Math.abs(a.phi-phi)<0.4&&Math.abs(a.theta-theta)<0.5));
+      usedAngles.push({phi,theta});
+      const r=0.185; // 紧贴星球表面
+      const pos=new THREE.Vector3(
+        r*Math.sin(phi)*Math.cos(theta),
+        r*Math.sin(phi)*Math.sin(theta),
+        r*Math.cos(phi)
+      );
+      // 随机大小 0.07~0.13
+      const sz=0.07+Math.random()*0.06;
+      // 随机选一种符文图案
+      const runeType=Math.floor(Math.random()*3);
+      const mat=new THREE.MeshBasicMaterial({map:makeRuneTex(runeType),side:THREE.DoubleSide,transparent:true,opacity:0,depthWrite:false});
+      const mesh=new THREE.Mesh(new THREE.PlaneGeometry(sz,sz),mat);
+      mesh.position.copy(pos);
+      // 让符文面朝外（法线朝向星球外部）
+      const outward=pos.clone().normalize();
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),outward);
+      planet.add(mesh);
+      runeObjs.push({mesh,found:false,idx:i});
     }
   }
 
@@ -533,13 +552,16 @@ function spawnClickSpark(x,y,col){
 function checkCollect(x,y){
   if(!collectActive) return false;
   let hit=false;
+  // 超级星球每次收集量减半，需要更多操作
+  const meteorGain = isSuperPlanet ? 0.04 : 0.08;
+  const ballGain   = isSuperPlanet ? 0.06 : 0.12;
   for(const m of meteors){
     if(m.collected) continue;
-    if(Math.hypot(m.x-x,m.y-y)<m.r*2.5){ m.collected=true; hit=true; collectEnergy=Math.min(1,collectEnergy+0.08); spawnClickSpark(x,y,'rgba(255,120,0,0.9)'); playClickSound(400); }
+    if(Math.hypot(m.x-x,m.y-y)<m.r*2.5){ m.collected=true; hit=true; collectEnergy=Math.min(1,collectEnergy+meteorGain); spawnClickSpark(x,y,'rgba(255,120,0,0.9)'); playClickSound(400); }
   }
   for(const b of energyBalls){
     if(b.collected) continue;
-    if(Math.hypot(b.x-x,b.y-y)<b.r*2.5){ b.collected=true; hit=true; collectEnergy=Math.min(1,collectEnergy+0.12); spawnClickSpark(x,y,'rgba(0,220,255,0.9)'); playClickSound(600); }
+    if(Math.hypot(b.x-x,b.y-y)<b.r*2.5){ b.collected=true; hit=true; collectEnergy=Math.min(1,collectEnergy+ballGain); spawnClickSpark(x,y,'rgba(0,220,255,0.9)'); playClickSound(600); }
   }
   if(hit){ $('collectFill').style.width=(collectEnergy*100)+'%'; if(collectEnergy>=1) triggerAwaken(); }
   return hit;
@@ -606,67 +628,96 @@ function detectMotion(){
   mcc.drawImage(vid,0,0,MOTION_W,MOTION_H);
   const curr=mcc.getImageData(0,0,MOTION_W,MOTION_H);
   if(!prevFrame){prevFrame=curr;return;}
-  // 找运动区域
+
   const regions=[];
   const BLOCK=20;
+  // 统计各块差异
+  const blockDiffs=[];
   for(let by=0;by<MOTION_H;by+=BLOCK){
     for(let bx=0;bx<MOTION_W;bx+=BLOCK){
       let diff=0, count=0;
       for(let y=by;y<Math.min(by+BLOCK,MOTION_H);y++){
         for(let x=bx;x<Math.min(bx+BLOCK,MOTION_W);x++){
           const idx=(y*MOTION_W+x)*4;
-          diff+=Math.abs(curr.data[idx]-prevFrame.data[idx])+Math.abs(curr.data[idx+1]-prevFrame.data[idx+1])+Math.abs(curr.data[idx+2]-prevFrame.data[idx+2]);
+          diff+=Math.abs(curr.data[idx]-prevFrame.data[idx])
+               +Math.abs(curr.data[idx+1]-prevFrame.data[idx+1])
+               +Math.abs(curr.data[idx+2]-prevFrame.data[idx+2]);
           count++;
         }
       }
-      if(diff/count>25){
-        // 映射到屏幕坐标
-        regions.push({
-          x:(bx/MOTION_W)*window.innerWidth,
-          y:(by/MOTION_H)*window.innerHeight,
-          w:(BLOCK/MOTION_W)*window.innerWidth,
-          h:(BLOCK/MOTION_H)*window.innerHeight
-        });
-      }
+      blockDiffs.push({bx,by,avg:diff/count});
     }
   }
+
+  // 阈值过滤：只取差异较大的块
+  const activeBlocks=blockDiffs.filter(b=>b.avg>30);
+
+  // 关键：要求连续运动块数量>=3才认为是真实物体（排除窗帘局部抖动）
+  // 先合并为区域
+  activeBlocks.forEach(b=>{
+    regions.push({
+      x:(b.bx/MOTION_W)*window.innerWidth,
+      y:(b.by/MOTION_H)*window.innerHeight,
+      w:(BLOCK/MOTION_W)*window.innerWidth,
+      h:(BLOCK/MOTION_H)*window.innerHeight
+    });
+  });
+
   prevFrame=curr;
-  // 合并相邻区域
   updateMotionBoxes(regions);
 }
 
 function updateMotionBoxes(regions){
-  // 清除旧框
   document.querySelectorAll('.motionBox').forEach(el=>el.remove());
   motionBoxes=[];
   if(regions.length===0) return;
-  // 合并为若干大框（最多3个）
+
+  // 合并相邻区域
   const merged=[];
   regions.forEach(r=>{
     let added=false;
     for(const m of merged){
-      if(Math.abs(r.x-m.x)<100&&Math.abs(r.y-m.y)<100){
+      if(Math.abs(r.x-m.cx)<150&&Math.abs(r.y-m.cy)<150){
         m.x=Math.min(m.x,r.x); m.y=Math.min(m.y,r.y);
-        m.w=Math.max(m.w,r.x+r.w-m.x); m.h=Math.max(m.h,r.y+r.h-m.y);
+        m.x2=Math.max(m.x2||m.x+m.w, r.x+r.w);
+        m.y2=Math.max(m.y2||m.y+m.h, r.y+r.h);
+        m.w=m.x2-m.x; m.h=m.y2-m.y;
+        m.cx=m.x+m.w/2; m.cy=m.y+m.h/2;
+        m.count=(m.count||1)+1;
         added=true; break;
       }
     }
-    if(!added) merged.push({...r});
+    if(!added) merged.push({...r,x2:r.x+r.w,y2:r.y+r.h,cx:r.x+r.w/2,cy:r.y+r.h/2,count:1});
   });
-  merged.slice(0,3).forEach(m=>{
+
+  // 关键过滤：
+  // 1. 运动区域必须够大（宽或高超过屏幕12%），排除窗帘、树叶等小抖动
+  // 2. 合并块数>=3，排除孤立噪点
+  const minSize=Math.min(window.innerWidth,window.innerHeight)*0.12;
+  const valid=merged.filter(m=>
+    (m.w>minSize||m.h>minSize) && m.count>=3
+  );
+
+  valid.slice(0,2).forEach(m=>{
+    // 给框加一点padding让它更好看
+    const pad=16;
     const el=document.createElement('div');
     el.className='motionBox';
-    el.style.cssText=`left:${m.x-10}px;top:${m.y-10}px;width:${m.w+20}px;height:${m.h+20}px;`;
-    el.addEventListener('click',e=>{
-      e.stopPropagation();
-      if(collectActive){ collectEnergy=Math.min(1,collectEnergy+0.15); $('collectFill').style.width=(collectEnergy*100)+'%'; spawnClickSpark(m.x+m.w/2,m.y+m.h/2,'rgba(0,100,255,0.9)'); playClickSound(500); if(collectEnergy>=1) triggerAwaken(); }
+    el.style.cssText=`left:${m.x-pad}px;top:${m.y-pad}px;width:${m.w+pad*2}px;height:${m.h+pad*2}px;`;
+    const handleCollect=e=>{
+      e.stopPropagation(); if(e.cancelable) e.preventDefault();
+      if(collectActive){
+        const gain=isSuperPlanet?0.06:0.15;
+        collectEnergy=Math.min(1,collectEnergy+gain);
+        $('collectFill').style.width=(collectEnergy*100)+'%';
+        spawnClickSpark(m.cx,m.cy,'rgba(0,100,255,0.9)');
+        playClickSound(500);
+        if(collectEnergy>=1) triggerAwaken();
+      }
       el.style.opacity='0'; setTimeout(()=>el.remove(),300);
-    });
-    el.addEventListener('touchend',e=>{
-      e.stopPropagation(); e.preventDefault();
-      if(collectActive){ collectEnergy=Math.min(1,collectEnergy+0.15); $('collectFill').style.width=(collectEnergy*100)+'%'; spawnClickSpark(m.x+m.w/2,m.y+m.h/2,'rgba(0,100,255,0.9)'); playClickSound(500); if(collectEnergy>=1) triggerAwaken(); }
-      el.style.opacity='0'; setTimeout(()=>el.remove(),300);
-    });
+    };
+    el.addEventListener('click',handleCollect);
+    el.addEventListener('touchend',handleCollect,{passive:false});
     document.body.appendChild(el);
     motionBoxes.push(el);
   });
@@ -1002,4 +1053,5 @@ $('startBtnInner').addEventListener('click',async()=>{
 });
 </script>
 </body>
+</html>
 </html>
