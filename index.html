@@ -528,90 +528,370 @@ const jet=new THREE.Points(jGeo,new THREE.PointsMaterial({size:0.003,color:0xFFD
 scene.add(jet);
 
 // ══════════════════════════════════════
+// 像素贴纸绘制库
+// ══════════════════════════════════════
+const PIXEL=4; // 每个像素点的实际像素大小（放大倍数）
+
+// 绘制像素图：data是32x32的颜色数组（null=透明）
+function drawPixelSprite(ctx,data,x,y,scale=1){
+  const p=PIXEL*scale;
+  data.forEach((row,ry)=>{
+    row.forEach((col,rx)=>{
+      if(!col) return;
+      ctx.fillStyle=col;
+      ctx.fillRect(x+rx*p, y+ry*p, p, p);
+    });
+  });
+}
+
+// ── 宇航员像素数据（16x20简化版）──
+function getAstronautData(){
+  const _ =null, W='#e8e8f0', B='#2233aa', G='#6699ff', Y='#ffdd00', S='#aaaacc', R='#ff8888';
+  return[
+    [_,_,_,S,S,S,S,_,_,_],
+    [_,_,S,W,W,W,W,S,_,_],
+    [_,S,W,G,G,G,G,W,S,_],
+    [_,S,W,G,W,W,G,W,S,_],
+    [_,S,W,G,W,W,G,W,S,_],
+    [_,S,W,G,R,R,G,W,S,_],
+    [_,_,S,W,W,W,W,S,_,_],
+    [_,W,W,W,W,W,W,W,W,_],
+    [W,W,B,B,B,B,B,B,W,W],
+    [W,W,B,G,G,G,G,B,W,W],
+    [W,B,B,B,B,B,B,B,B,W],
+    [_,W,W,W,W,W,W,W,W,_],
+    [_,W,W,_,_,_,_,W,W,_],
+    [_,B,W,_,_,_,_,W,B,_],
+    [_,B,B,_,_,_,_,B,B,_],
+    [B,B,_,_,_,_,_,_,B,B],
+  ];
+}
+
+// ── Q版飞船像素数据 ──
+function getShipData(){
+  const _=null,B='#334499',L='#4455aa',C='#6699ff',W='#ffffff',Y='#ffdd44',R='#cc3333',O='#ff6600',G='#88aaff';
+  return[
+    [_,_,_,_,_,Y,Y,_,_,_,_,_],
+    [_,_,_,_,R,R,R,R,_,_,_,_],
+    [_,_,_,B,B,B,B,B,B,_,_,_],
+    [_,B,B,B,L,L,L,L,B,B,B,_],
+    [B,B,C,C,C,L,L,C,C,C,B,B],
+    [B,C,W,C,L,L,L,L,C,W,C,B],
+    [B,C,W,C,L,G,G,L,C,W,C,B],
+    [B,B,C,C,C,L,L,C,C,C,B,B],
+    [_,B,B,B,L,L,L,L,B,B,B,_],
+    [_,_,O,O,_,_,_,_,O,O,_,_],
+    [_,O,O,_,_,_,_,_,_,O,O,_],
+  ];
+}
+
+// ── 像素陨石数据 ──
+function getMeteorData(){
+  const _=null,D='#554433',M='#776655',L='#998877',O='#ff8800',Y='#ffcc44',W='#ffffff';
+  return[
+    [_,_,O,Y,O,_,_,_],
+    [_,O,Y,W,Y,O,_,_],
+    [O,D,M,L,M,D,O,_],
+    [D,M,L,M,L,M,D,_],
+    [D,M,D,L,D,M,D,O],
+    [_,D,M,D,M,D,_,O],
+    [_,_,D,M,D,_,O,_],
+    [_,_,_,D,_,O,_,_],
+  ];
+}
+
+// ── 像素星云数据（柔和色块）──
+function getNebulaData(){
+  const _=null;
+  const p='#440066',q='#553388',r='#6633aa',s='#7744bb',t='#aa66ff',u='#cc99ff',w='#ffffff',x='#ffeeaa';
+  return[
+    [_,_,p,p,q,_,_,_],
+    [_,p,q,r,r,q,p,_],
+    [p,q,r,s,t,r,q,p],
+    [q,r,s,t,u,t,r,q],
+    [q,r,t,u,w,u,t,q],
+    [p,q,s,t,u,t,r,p],
+    [_,p,q,r,r,q,p,_],
+    [_,_,p,x,p,_,_,_],
+  ];
+}
+
+// ── 像素行星数据（三色）──
+function getPlanetData(colorIdx){
+  const _=null;
+  const palettes=[
+    // 紫色
+    {a:'#4422aa',b:'#5533cc',c:'#7755ee',d:'#aa88ff',e:'#dde0ff'},
+    // 红色
+    {a:'#882200',b:'#aa3300',c:'#cc4400',d:'#ff6633',e:'#ffaa88'},
+    // 绿色
+    {a:'#114422',b:'#226633',c:'#33aa55',d:'#44bb66',e:'#2244aa'},
+  ];
+  const {a,b,c,d,e}=palettes[colorIdx%3];
+  return[
+    [_,_,b,b,b,b,_,_],
+    [_,b,c,c,b,b,b,_],
+    [b,c,c,d,c,b,a,b],
+    [b,c,e,c,d,c,b,b],
+    [b,b,c,c,c,d,c,b],
+    [b,a,b,c,c,c,b,b],
+    [_,b,b,b,c,b,b,_],
+    [_,_,b,b,b,b,_,_],
+  ];
+}
+
+// ══════════════════════════════════════
 // 2D FX Canvas
 // ══════════════════════════════════════
 const fx=$('fxCanvas'); fx.width=window.innerWidth; fx.height=window.innerHeight;
 const fc=fx.getContext('2d');
 const trails=[], meteors=[], energyBalls=[];
+// 漂浮宇航员（彩蛋，一直存在）
+const floatAstronauts=[];
 let collectEnergy=0, collectActive=false, collectSpawnTimer=0;
+let astronautSpawnTimer=0;
+
+// ── 宇航员漂浮彩蛋（探索阶段随机飘过屏幕）──
+function spawnFloatAstronaut(){
+  const fromLeft=Math.random()<0.5;
+  floatAstronauts.push({
+    x: fromLeft ? -80 : window.innerWidth+20,
+    y: 80+Math.random()*(window.innerHeight*0.5),
+    vx: fromLeft ? 0.6+Math.random()*0.4 : -(0.6+Math.random()*0.4),
+    vy: (Math.random()-0.5)*0.3,
+    scale:1+Math.random()*0.5,
+    wobble:Math.random()*6.28,
+    life:1,
+    data:getAstronautData(),
+    bubble: Math.random()<0.4 ? ['探索中...','加油！','好冷啊','哇好大','到了吗'][Math.floor(Math.random()*5)] : null,
+  });
+}
+
+function drawBubble(ctx,text,x,y){
+  ctx.save();
+  ctx.font='bold 11px monospace';
+  const tw=ctx.measureText(text).width;
+  const bw=tw+12, bh=18;
+  ctx.fillStyle='rgba(0,0,0,0.7)';
+  ctx.beginPath();
+  ctx.roundRect(x-bw/2,y-bh-4,bw,bh,6);
+  ctx.fill();
+  ctx.fillStyle='#00ff88';
+  ctx.textAlign='center';
+  ctx.fillText(text,x,y-10);
+  ctx.restore();
+}
 
 function spawnMeteor(){
-  meteors.push({x:Math.random()*window.innerWidth,y:-20,vx:(Math.random()-0.5)*3,vy:4+Math.random()*4,r:8+Math.random()*10,col:`hsl(${30+Math.random()*30},100%,60%)`,trail:[],collected:false,life:1});
+  // 随机选：像素陨石 or 像素行星
+  const type=Math.random()<0.6?'meteor':'planet';
+  meteors.push({
+    x:Math.random()*window.innerWidth, y:-60,
+    vx:(Math.random()-0.5)*2.5, vy:3+Math.random()*3.5,
+    scale:1.5+Math.random(),
+    type, planetIdx:Math.floor(Math.random()*3),
+    data: type==='meteor'?getMeteorData():getPlanetData(Math.floor(Math.random()*3)),
+    trail:[], collected:false, life:1,
+    rot:0, rotSpeed:(Math.random()-0.5)*0.05,
+    col: type==='meteor'?'#ff8800':'#aa66ff',
+  });
 }
+
 function spawnEnergyBall(){
-  const angle=Math.random()*Math.PI*2, dist=100+Math.random()*120;
+  // 随机选：宇航员 or 飞船 or 星云
+  const types=['astronaut','ship','nebula'];
+  const type=types[Math.floor(Math.random()*types.length)];
+  const angle=Math.random()*Math.PI*2, dist=100+Math.random()*130;
   const cx=window.innerWidth/2, cy=window.innerHeight*0.42;
-  energyBalls.push({x:cx+Math.cos(angle)*dist,y:cy+Math.sin(angle)*dist,vx:(Math.random()-0.5)*1.5,vy:(Math.random()-0.5)*1.5,r:12+Math.random()*8,phase:Math.random()*6.28,col:`hsl(${180+Math.random()*60},100%,60%)`,trail:[],collected:false,life:1});
+  energyBalls.push({
+    x:cx+Math.cos(angle)*dist, y:cy+Math.sin(angle)*dist,
+    vx:(Math.random()-0.5)*1.2, vy:(Math.random()-0.5)*1.2,
+    scale:1.2+Math.random()*0.8,
+    type, phase:Math.random()*6.28,
+    data: type==='astronaut'?getAstronautData():type==='ship'?getShipData():getNebulaData(),
+    trail:[], collected:false, life:1,
+    col: type==='astronaut'?'#6699ff':type==='ship'?'#ffdd44':'#aa66ff',
+  });
 }
+
 function spawnClickSpark(x,y,col){
   for(let i=0;i<8;i++){
     const a=Math.random()*6.28, spd=3+Math.random()*5;
     trails.push({pts:[{x,y},{x:x+Math.cos(a)*spd*3,y:y+Math.sin(a)*spd*3}],col,life:1});
   }
+  // 额外：像素爆炸碎片（小星点）
+  for(let i=0;i<6;i++){
+    const a=Math.random()*6.28, spd=5+Math.random()*8;
+    trails.push({
+      pts:[{x,y},{x:x+Math.cos(a)*spd*4,y:y+Math.sin(a)*spd*4}],
+      col:'#FFD700', life:0.8, pixel:true
+    });
+  }
 }
+
+// 获取精灵包围盒（用于点击检测）
+function getSpriteBox(obj){
+  const rows=obj.data.length, cols=obj.data[0].length;
+  const p=PIXEL*obj.scale;
+  const w=cols*p, h=rows*p;
+  return {x:obj.x-w/2, y:obj.y-h/2, w, h};
+}
+
 function checkCollect(x,y){
   if(!collectActive) return false;
   let hit=false;
-  // 超级星球每次收集量减半，需要更多操作
   const meteorGain = isSuperPlanet ? 0.04 : 0.08;
   const ballGain   = isSuperPlanet ? 0.06 : 0.12;
   for(const m of meteors){
     if(m.collected) continue;
-    if(Math.hypot(m.x-x,m.y-y)<m.r*2.5){ m.collected=true; hit=true; collectEnergy=Math.min(1,collectEnergy+meteorGain); spawnClickSpark(x,y,'rgba(255,120,0,0.9)'); playClickSound(400); }
+    const b=getSpriteBox(m);
+    if(x>b.x&&x<b.x+b.w&&y>b.y&&y<b.y+b.h){
+      m.collected=true; hit=true;
+      collectEnergy=Math.min(1,collectEnergy+meteorGain);
+      spawnClickSpark(x,y,'rgba(255,120,0,0.9)'); playClickSound(400);
+    }
   }
   for(const b of energyBalls){
     if(b.collected) continue;
-    if(Math.hypot(b.x-x,b.y-y)<b.r*2.5){ b.collected=true; hit=true; collectEnergy=Math.min(1,collectEnergy+ballGain); spawnClickSpark(x,y,'rgba(0,220,255,0.9)'); playClickSound(600); }
+    const bx=getSpriteBox(b);
+    if(x>bx.x&&x<bx.x+bx.w&&y>bx.y&&y<bx.y+bx.h){
+      b.collected=true; hit=true;
+      collectEnergy=Math.min(1,collectEnergy+ballGain);
+      spawnClickSpark(x,y,'rgba(0,220,255,0.9)'); playClickSound(600);
+    }
   }
   if(hit){ $('collectFill').style.width=(collectEnergy*100)+'%'; if(collectEnergy>=1) triggerAwaken(); }
   return hit;
 }
 
+// ── 像素精灵绘制（带拖尾）──
+function drawSprite(ctx,obj){
+  const rows=obj.data.length, cols=obj.data[0].length;
+  const p=PIXEL*obj.scale;
+  const ox=obj.x-cols*p/2, oy=obj.y-rows*p/2;
+  ctx.save();
+  ctx.translate(obj.x,obj.y);
+  if(obj.rot) ctx.rotate(obj.rot);
+  ctx.translate(-obj.x,-obj.y);
+  ctx.globalAlpha=obj.life;
+  drawPixelSprite(ctx,obj.data,ox,oy,obj.scale);
+  ctx.restore();
+}
+
 function updateFX(dt){
   fc.clearRect(0,0,fx.width,fx.height);
+
+  // 漂浮宇航员（常驻彩蛋，不在收集阶段也有）
+  astronautSpawnTimer+=dt;
+  if(astronautSpawnTimer>18+Math.random()*12){ // 约18秒一个
+    astronautSpawnTimer=0; spawnFloatAstronaut();
+  }
+  for(let i=floatAstronauts.length-1;i>=0;i--){
+    const a=floatAstronauts[i];
+    a.x+=a.vx; a.y+=a.vy*Math.sin(a.wobble);
+    a.wobble+=0.02;
+    const rows=a.data.length, cols=a.data[0].length;
+    const p=PIXEL*a.scale;
+    if(a.x>window.innerWidth+100||a.x<-100){floatAstronauts.splice(i,1);continue;}
+    fc.save(); fc.globalAlpha=0.85;
+    drawPixelSprite(fc,a.data,a.x-cols*p/2,a.y-rows*p/2,a.scale);
+    fc.restore();
+    if(a.bubble) drawBubble(fc,a.bubble,a.x,a.y-rows*p/2-5);
+  }
+
+  // 拖尾
   for(let i=trails.length-1;i>=0;i--){
     const t=trails[i]; t.life-=0.06; if(t.life<=0){trails.splice(i,1);continue;}
-    fc.beginPath(); fc.strokeStyle=t.col; fc.lineWidth=3*t.life; fc.globalAlpha=t.life*0.7;
-    fc.shadowColor=t.col; fc.shadowBlur=6;
-    fc.moveTo(t.pts[0].x,t.pts[0].y); fc.lineTo(t.pts[1].x,t.pts[1].y); fc.stroke();
-    fc.globalAlpha=1; fc.shadowBlur=0;
+    if(t.pixel){
+      fc.fillStyle=t.col; fc.globalAlpha=t.life*0.8;
+      fc.fillRect(t.pts[1].x-3,t.pts[1].y-3,6,6);
+      fc.globalAlpha=1;
+    } else {
+      fc.beginPath(); fc.strokeStyle=t.col; fc.lineWidth=3*t.life; fc.globalAlpha=t.life*0.7;
+      fc.moveTo(t.pts[0].x,t.pts[0].y); fc.lineTo(t.pts[1].x,t.pts[1].y); fc.stroke();
+      fc.globalAlpha=1;
+    }
   }
+
   if(!collectActive) return;
   collectSpawnTimer+=dt;
-  if(collectSpawnTimer>0.55){collectSpawnTimer=0;spawnMeteor();}
-  if(Math.random()<0.03) spawnEnergyBall();
+  if(collectSpawnTimer>0.6){collectSpawnTimer=0;spawnMeteor();}
+  if(Math.random()<0.025) spawnEnergyBall();
+
+  // 陨石/行星（从天而降）
   for(let i=meteors.length-1;i>=0;i--){
-    const m=meteors[i]; m.x+=m.vx; m.y+=m.vy;
-    m.trail.push({x:m.x,y:m.y}); if(m.trail.length>15) m.trail.shift();
-    if(m.y>fx.height+30||m.collected&&(m.life-=0.08)<=0){meteors.splice(i,1);continue;}
-    if(m.collected) continue;
-    for(let j=1;j<m.trail.length;j++){
-      fc.beginPath(); fc.strokeStyle=m.col; fc.lineWidth=(j/m.trail.length)*m.r*0.5;
-      fc.globalAlpha=(j/m.trail.length)*0.5; fc.moveTo(m.trail[j-1].x,m.trail[j-1].y); fc.lineTo(m.trail[j].x,m.trail[j].y); fc.stroke();
+    const m=meteors[i];
+    m.x+=m.vx; m.y+=m.vy; m.rot+=m.rotSpeed;
+    // 火焰拖尾
+    m.trail.push({x:m.x,y:m.y});
+    if(m.trail.length>12) m.trail.shift();
+    if(m.y>fx.height+80||(m.collected&&(m.life-=0.1)<=0)){meteors.splice(i,1);continue;}
+    if(m.collected){
+      // 收集动画：放大后消失
+      fc.save(); fc.globalAlpha=m.life*0.6;
+      const rows=m.data.length, cols=m.data[0].length;
+      const sc=m.scale*(2-m.life);
+      const p=PIXEL*sc;
+      drawPixelSprite(fc,m.data,m.x-cols*p/2,m.y-rows*p/2,sc);
+      fc.restore();
+      continue;
     }
-    fc.globalAlpha=1;
-    const mg=fc.createRadialGradient(m.x,m.y,0,m.x,m.y,m.r);
-    mg.addColorStop(0,'#fff'); mg.addColorStop(0.3,m.col); mg.addColorStop(1,'transparent');
-    fc.fillStyle=mg; fc.beginPath(); fc.arc(m.x,m.y,m.r,0,6.28); fc.fill();
+    // 火焰拖尾绘制
+    if(m.type==='meteor'){
+      for(let j=1;j<m.trail.length;j++){
+        const prog=j/m.trail.length;
+        fc.fillStyle=prog>0.7?'#ffcc44':prog>0.4?'#ff8800':'#ff4400';
+        fc.globalAlpha=prog*0.5;
+        fc.fillRect(m.trail[j].x-3,m.trail[j].y-3,6,6);
+      }
+      fc.globalAlpha=1;
+    }
+    drawSprite(fc,m);
   }
+
+  // 能量球（宇航员/飞船/星云漂浮）
   for(let i=energyBalls.length-1;i>=0;i--){
-    const b=energyBalls[i]; b.phase+=0.05; b.x+=b.vx+Math.sin(b.phase)*0.5; b.y+=b.vy+Math.cos(b.phase)*0.5;
-    b.trail.push({x:b.x,y:b.y}); if(b.trail.length>20) b.trail.shift();
-    if(b.x<-60||b.x>fx.width+60||b.y<-60||b.y>fx.height+60||b.collected&&(b.life-=0.06)<=0){energyBalls.splice(i,1);continue;}
-    if(b.collected) continue;
+    const b=energyBalls[i];
+    b.phase+=0.04;
+    b.x+=b.vx+Math.sin(b.phase)*0.8;
+    b.y+=b.vy+Math.cos(b.phase*0.7)*0.6;
+    b.trail.push({x:b.x,y:b.y});
+    if(b.trail.length>10) b.trail.shift();
+    if(b.x<-100||b.x>fx.width+100||b.y<-100||b.y>fx.height+100||(b.collected&&(b.life-=0.08)<=0)){energyBalls.splice(i,1);continue;}
+    if(b.collected){
+      fc.save(); fc.globalAlpha=b.life*0.5;
+      const rows=b.data.length, cols=b.data[0].length;
+      const sc=b.scale*(1.5+0.5*(1-b.life));
+      const p=PIXEL*sc;
+      drawPixelSprite(fc,b.data,b.x-cols*p/2,b.y-rows*p/2,sc);
+      fc.restore();
+      continue;
+    }
+    // 光晕
+    const rows=b.data.length, cols=b.data[0].length;
+    const p=PIXEL*b.scale;
+    const pulse=0.8+0.2*Math.sin(b.phase*3);
+    fc.save();
+    fc.globalAlpha=0.25*pulse;
+    fc.fillStyle=b.col;
+    fc.beginPath();
+    fc.arc(b.x,b.y,Math.max(cols,rows)*p*0.6,0,6.28);
+    fc.fill();
+    fc.restore();
+    // 拖尾星点
     for(let j=1;j<b.trail.length;j++){
-      fc.beginPath(); fc.strokeStyle=b.col; fc.lineWidth=(j/b.trail.length)*3;
-      fc.globalAlpha=(j/b.trail.length)*0.45; fc.moveTo(b.trail[j-1].x,b.trail[j-1].y); fc.lineTo(b.trail[j].x,b.trail[j].y); fc.stroke();
+      fc.fillStyle=b.col;
+      fc.globalAlpha=(j/b.trail.length)*0.3;
+      fc.fillRect(b.trail[j].x-2,b.trail[j].y-2,4,4);
     }
     fc.globalAlpha=1;
-    const pulse=0.8+0.2*Math.sin(b.phase*3);
-    const bg=fc.createRadialGradient(b.x,b.y,0,b.x,b.y,b.r*pulse);
-    bg.addColorStop(0,'rgba(255,255,255,0.9)'); bg.addColorStop(0.4,b.col); bg.addColorStop(1,'transparent');
-    fc.fillStyle=bg; fc.beginPath(); fc.arc(b.x,b.y,b.r*pulse,0,6.28); fc.fill();
-    fc.beginPath(); fc.arc(b.x,b.y,b.r*pulse*1.6,0,6.28);
-    fc.strokeStyle=b.col; fc.lineWidth=1; fc.globalAlpha=0.25; fc.shadowColor=b.col; fc.shadowBlur=8; fc.stroke();
-    fc.globalAlpha=1; fc.shadowBlur=0;
+    drawSprite(fc,b);
+    // 宇航员显示对话泡泡
+    if(b.type==='astronaut'&&Math.floor(b.phase*5)%30===0){
+      drawBubble(fc,'收集我！',b.x,b.y-rows*p/2-4);
+    }
   }
+
 }
 
 // ══════════════════════════════════════
@@ -1052,6 +1332,8 @@ $('startBtnInner').addEventListener('click',async()=>{
   motionActive=true;
 });
 </script>
+</body>
+</html>
 </body>
 </html>
 </html>
